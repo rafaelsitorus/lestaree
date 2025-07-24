@@ -123,7 +123,7 @@ export default function GlobeComponent() {
 
     if (targetIsland) {
       console.log(`Clicked inside bounding box for: ${targetIsland}. Redirecting...`);
-      router.push(`/${targetIsland.toLowerCase()}`); // Redirect ke /jawa, /sumatera, dll.
+      router.push(`/Dashboard/${targetIsland.toLowerCase()}`); // Redirect ke /jawa, /sumatera, dll.
     } else {
       console.log("Clicked outside any defined island bounding box. No redirect.");
       // Opsional: Redirect ke halaman default atau lakukan sesuatu yang lain

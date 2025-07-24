@@ -1,6 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@import "leaflet/dist/leaflet.css";
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -119,4 +121,13 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.leaflet-control-zoom {
+  display: none !important;
+}
+
+/* Custom marker styling */
+.leaflet-marker-icon {
+  
 }
