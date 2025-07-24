@@ -13,6 +13,9 @@
     "@radix-ui/react-progress": "^1.1.7",
     "@radix-ui/react-slot": "^1.2.3",
     "@types/leaflet": "^1.9.20",
+    "@react-three/drei": "^10.6.0",
+    "@react-three/fiber": "^9.2.0",
+    "@types/three": "^0.178.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "leaflet": "^1.9.4",
@@ -21,8 +24,12 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-leaflet": "^5.0.0",
+    "react-three-fiber": "^6.0.13",
     "recharts": "^2.15.4",
-    "tailwind-merge": "^3.3.1"
+    "tailwind-merge": "^3.3.1",
+    "three": "^0.178.0",
+    "three-globe": "^2.43.0",
+    "three-glow-mesh": "^0.1.2"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

@@ -69,10 +69,10 @@ const islandConfigs = {
       },
     ],
   },
-  sumatra: {
+  sumatera: {
     center: [-0.5, 101.5] as [number, number],
     zoom: 7,
-    name: "Sumatra",
+    name: "Sumatera",
     areas: [
       {
         id: "medan",
