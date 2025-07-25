@@ -454,6 +454,36 @@ export default function Dashboard() {
   // Function untuk memanggil Gemini API
   const callGeminiAPI = async (energyType: 'solar' | 'wind' | 'hydro', message: string = '', useContext: boolean = true) => {
     try {
+      // Ensure we have valid data before making API call
+      if (!calculatedAreaData || loading || provinceData.length === 0) {
+        console.warn('⚠️ Data not ready for AI API call, skipping...');
+        return {
+          success: false,
+          message: 'Data masih dimuat, silakan tunggu sebentar...'
+        };
+      }
+
+      // Validate that we have meaningful data (not all zeros)
+      const hasValidData = calculatedAreaData.avgSolarOutput > 0 || 
+                          calculatedAreaData.avgWindOutput > 0 || 
+                          calculatedAreaData.avgHydroOutput > 0;
+
+      if (!hasValidData) {
+        console.warn('⚠️ Data contains no valid energy output, using fallback message...');
+        return {
+          success: false,
+          message: 'Data sedang diproses, silakan tunggu beberapa saat...'
+        };
+      }
+
+      console.log(`🔍 Calling AI API with data:`, {
+        energyType,
+        solarOutput: calculatedAreaData.avgSolarOutput,
+        windOutput: calculatedAreaData.avgWindOutput,
+        hydroOutput: calculatedAreaData.avgHydroOutput,
+        hasMessage: !!message
+      });
+
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: {
@@ -508,9 +538,36 @@ export default function Dashboard() {
         }));
 
         setHasInitialAnalysis(prev => ({ ...prev, [energyType]: true }));
+      } else {
+        // If data isn't ready, retry in a few seconds
+        if (result.message.includes('masih dimuat') || result.message.includes('sedang diproses')) {
+          console.log(`🔄 Data not ready for ${energyType}, will retry in 2 seconds...`);
+          setTimeout(() => {
+            generateInitialAnalysis(energyType);
+          }, 2000);
+        } else {
+          // Other errors, set a default message
+          setChatMessages(prev => ({
+            ...prev,
+            [energyType]: [{
+              type: 'ai',
+              message: result.message,
+              timestamp: new Date().toISOString()
+            }]
+          }));
+        }
       }
     } catch (error) {
       console.error('Error generating initial analysis:', error);
+      // Set error message
+      setChatMessages(prev => ({
+        ...prev,
+        [energyType]: [{
+          type: 'ai',
+          message: 'Sistem AI sedang dimuat. Silakan tunggu sebentar atau refresh halaman.',
+          timestamp: new Date().toISOString()
+        }]
+      }));
     } finally {
       setIsLoading(prev => ({ ...prev, [energyType]: false }));
     }
