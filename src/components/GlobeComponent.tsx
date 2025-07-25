@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import * as THREE from 'three'; // Import Three.js secara keseluruhan
+import * as THREE from 'three';
 import {
   WebGLRenderer,
   Scene,
@@ -17,7 +17,7 @@ import {
   Vector2,
   Object3D,
   Mesh,
-  CanvasTexture, // Import CanvasTexture
+  CanvasTexture,
 } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { useRouter } from 'next/navigation';

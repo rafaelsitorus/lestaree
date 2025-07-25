@@ -17,7 +17,7 @@ export default function AboutPage() {
           <div className="space-y-8">
             <h2 className="text-3xl font-bold text-gray-800">Our Vision</h2>
             <p className="text-lg text-gray-600 leading-relaxed">
-              To become Indonesia's leading platform for sustainable energy intelligence, 
+              To become Indonesia&apos;s leading platform for sustainable energy intelligence, 
               providing comprehensive insights that balance renewable energy development 
               with environmental protection.
             </p>
@@ -28,7 +28,7 @@ export default function AboutPage() {
             <p className="text-lg text-gray-600 leading-relaxed">
               Empowering organizations and communities with AI-driven tools to make 
               informed decisions about renewable energy projects while safeguarding 
-              Indonesia's unique ecosystem.
+              Indonesia&apos;s unique ecosystem.
             </p>
           </div>
         </div>

@@ -37,7 +37,6 @@ import {
   Tooltip,
 } from "recharts";
 
-// Types for database data
 interface ProvinceData {
   id: number;
   provinceName: string;
@@ -54,8 +53,6 @@ interface ProvinceData {
     energyName: string;
   };
 }
-
-// Types for tooltip props
 interface TooltipProps {
   active?: boolean;
   payload?: Array<{
@@ -70,7 +67,6 @@ interface TooltipProps {
   label?: string;
 }
 
-// Month names for display
 const monthNames = [
   "Jan",
   "Feb",
@@ -86,7 +82,6 @@ const monthNames = [
   "Dec",
 ];
 
-// Area-specific data with sustainability information (using raja's enhanced version)
 const areaData = {
   jelambar: {
     name: "Jelambar, Jakarta",
@@ -151,16 +146,13 @@ export default function Dashboard() {
     hydro: false
   });
 
-  // Get mapId from route parameter
   const mapId = (params?.mapId as string) || "jawa";
 
-  // Load island configuration and data
   useEffect(() => {
     const loadIslandData = async () => {
       try {
         setLoading(true);
 
-        // Get island configuration
         const config = getIslandConfig(mapId);
         setIslandConfig(config);
 
@@ -169,9 +161,8 @@ export default function Dashboard() {
           return;
         }
 
-        console.log(`🔍 Loading data for island: ${mapId}`);
+        console.log(`Loading data : ${mapId}`);
 
-        // Fetch province data from database API
         const response = await fetch(`/api/province-data/${mapId}`);
 
         if (response.ok) {
@@ -186,7 +177,6 @@ export default function Dashboard() {
             errorText
           );
 
-          // Try to parse as JSON for better error message
           try {
             const errorJson = JSON.parse(errorText);
             console.error("API Error:", errorJson);
@@ -204,288 +194,6 @@ export default function Dashboard() {
     loadIslandData();
   }, [mapId]);
 
-  // Function untuk memanggil Gemini API
-  const callGeminiAPI = async (energyType: 'solar' | 'wind' | 'hydro', message: string = '', useContext: boolean = true) => {
-    try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message,
-          energyType,
-          energyData: areaData.jelambar, // Use static data for AI context
-          useContext
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('API Response Error:', {
-          status: response.status,
-          statusText: response.statusText,
-          body: errorText
-        });
-        throw new Error(`API call failed: ${response.status} ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      return result;
-    } catch (error) {
-      console.error('Error calling Gemini API:', error);
-      return {
-        success: false,
-        message: 'Maaf, terjadi kesalahan saat memproses permintaan Anda. Silakan coba lagi.'
-      };
-    }
-  };
-
-  // Function untuk generate initial AI analysis
-  const generateInitialAnalysis = async (energyType: 'solar' | 'wind' | 'hydro') => {
-    if (hasInitialAnalysis[energyType]) return;
-
-    setIsLoading(prev => ({ ...prev, [energyType]: true }));
-
-    try {
-      const result = await callGeminiAPI(energyType, '', true);
-      
-      if (result.success) {
-        setChatMessages(prev => ({
-          ...prev,
-          [energyType]: [{
-            type: 'ai',
-            message: result.message,
-            timestamp: new Date().toISOString()
-          }]
-        }));
-
-        setHasInitialAnalysis(prev => ({ ...prev, [energyType]: true }));
-      }
-    } catch (error) {
-      console.error('Error generating initial analysis:', error);
-    } finally {
-      setIsLoading(prev => ({ ...prev, [energyType]: false }));
-    }
-  };
-
-  // Function untuk handle user messages
-  const handleSendMessage = async (energyType: 'solar' | 'wind' | 'hydro') => {
-    const message = currentInput[energyType].trim();
-    if (!message || isLoading[energyType]) return;
-
-    // Add user message
-    const userMessage = {
-      type: 'user' as const,
-      message,
-      timestamp: new Date().toISOString()
-    };
-
-    setChatMessages(prev => ({
-      ...prev,
-      [energyType]: [...prev[energyType], userMessage]
-    }));
-
-    // Clear input
-    setCurrentInput(prev => ({
-      ...prev,
-      [energyType]: ''
-    }));
-
-    // Set loading state
-    setIsLoading(prev => ({ ...prev, [energyType]: true }));
-
-    try {
-      const result = await callGeminiAPI(energyType, message, true);
-      
-      if (result.success) {
-        const aiMessage = {
-          type: 'ai' as const,
-          message: result.message,
-          timestamp: new Date().toISOString()
-        };
-
-        setChatMessages(prev => ({
-          ...prev,
-          [energyType]: [...prev[energyType], aiMessage]
-        }));
-
-        // Auto-scroll to show latest message
-        setTimeout(() => {
-          const analysisContainer = document.querySelector(`[data-scroll-${energyType}]`);
-          if (analysisContainer) {
-            analysisContainer.scrollTop = analysisContainer.scrollHeight;
-          }
-        }, 100);
-      }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      // Add error message
-      setChatMessages(prev => ({
-        ...prev,
-        [energyType]: [...prev[energyType], {
-          type: 'ai',
-          message: 'Maaf, terjadi kesalahan saat memproses pesan Anda. Silakan coba lagi.',
-          timestamp: new Date().toISOString()
-        }]
-      }));
-    } finally {
-      setIsLoading(prev => ({ ...prev, [energyType]: false }));
-    }
-  };
-
-  // Generate initial analysis on component mount
-  useEffect(() => {
-    if (!loading && provinceData.length > 0) {
-      generateInitialAnalysis('solar');
-      generateInitialAnalysis('wind');
-      generateInitialAnalysis('hydro');
-    }
-  }, [loading, provinceData.length]);
-
-  // Function to get province name from selected area
-  const getProvinceFromArea = (areaId: string) => {
-    if (!islandConfig) return null;
-    const area = islandConfig.areas.find((area) => area.id === areaId);
-    return area?.provinceName || null;
-  };
-
-  // Process energy data using database data
-  const processEnergyData = (selectedArea?: string) => {
-    let targetProvince = null;
-
-    if (selectedArea) {
-      targetProvince = getProvinceFromArea(selectedArea);
-    }
-
-    const monthlyData = monthNames.map((month, index) => {
-      const monthNumber = index + 1;
-
-      // Get real wind data from database
-      let windOutput = 0;
-      if (targetProvince) {
-        // Use database data for specific province
-        const monthData = provinceData.filter(
-          (item: ProvinceData) =>
-            item.provinceName === targetProvince &&
-            item.month === monthNumber &&
-            item.energyID === "WIND"
-        );
-        windOutput =
-          monthData.length > 0
-            ? Math.round(
-                monthData.reduce(
-                  (sum: number, item: ProvinceData) => sum + item.output,
-                  0
-                ) / monthData.length
-              )
-            : 0;
-      } else {
-        // Use all provinces in island from database
-        const islandProvinces = getIslandProvinces(mapId);
-        const monthData = provinceData.filter(
-          (item: ProvinceData) =>
-            islandProvinces.includes(item.provinceName) &&
-            item.month === monthNumber &&
-            item.energyID === "WIND"
-        );
-        windOutput =
-          monthData.length > 0
-            ? Math.round(
-                monthData.reduce(
-                  (sum: number, item: ProvinceData) => sum + item.output,
-                  0
-                ) / monthData.length
-              )
-            : 0;
-      }
-
-      // Get real solar and hydro data from database
-      let solarOutput = 0;
-      let hydroOutput = 0;
-
-      if (targetProvince) {
-        // Use database data for specific province
-        const solarMonthData = provinceData.filter(
-          (item: ProvinceData) =>
-            item.provinceName === targetProvince &&
-            item.month === monthNumber &&
-            item.energyID === "SOLAR"
-        );
-        solarOutput =
-          solarMonthData.length > 0
-            ? Math.round(
-                solarMonthData.reduce(
-                  (sum: number, item: ProvinceData) => sum + item.output,
-                  0
-                ) / solarMonthData.length
-              )
-            : 0;
-
-        const hydroMonthData = provinceData.filter(
-          (item: ProvinceData) =>
-            item.provinceName === targetProvince &&
-            item.month === monthNumber &&
-            item.energyID === "HYDRO"
-        );
-        hydroOutput =
-          hydroMonthData.length > 0
-            ? Math.round(
-                hydroMonthData.reduce(
-                  (sum: number, item: ProvinceData) => sum + item.output,
-                  0
-                ) / hydroMonthData.length
-              )
-            : 0;
-      } else {
-        // Use all provinces in island from database
-        const islandProvinces = getIslandProvinces(mapId);
-        const solarMonthData = provinceData.filter(
-          (item: ProvinceData) =>
-            islandProvinces.includes(item.provinceName) &&
-            item.month === monthNumber &&
-            item.energyID === "SOLAR"
-        );
-        solarOutput =
-          solarMonthData.length > 0
-            ? Math.round(
-                solarMonthData.reduce(
-                  (sum: number, item: ProvinceData) => sum + item.output,
-                  0
-                ) / solarMonthData.length
-              )
-            : 0;
-
-        const hydroMonthData = provinceData.filter(
-          (item: ProvinceData) =>
-            islandProvinces.includes(item.provinceName) &&
-            item.month === monthNumber &&
-            item.energyID === "HYDRO"
-        );
-        hydroOutput =
-          hydroMonthData.length > 0
-            ? Math.round(
-                hydroMonthData.reduce(
-                  (sum: number, item: ProvinceData) => sum + item.output,
-                  0
-                ) / hydroMonthData.length
-              )
-            : 0;
-      }
-
-      return {
-        month,
-        solarOutput,
-        windOutput,
-        hydroOutput,
-        totalOutput: solarOutput + windOutput + hydroOutput,
-      };
-    });
-
-    return monthlyData;
-  };
-
-  // Helper function to get provinces for an island (matching your seed data)
   const getIslandProvinces = (mapId: string): string[] => {
     const islandToProvinces: Record<string, string[]> = {
       jawa: [
@@ -535,7 +243,140 @@ export default function Dashboard() {
     return islandToProvinces[mapId.toLowerCase()] || [];
   };
 
-  // Get area-specific data
+  const getProvinceFromArea = (areaId: string) => {
+    if (!islandConfig) return null;
+    const area = islandConfig.areas.find((area) => area.id === areaId);
+    return area?.provinceName || null;
+  };
+
+  const processEnergyData = (selectedArea?: string) => {
+    let targetProvince = null;
+
+    if (selectedArea) {
+      targetProvince = getProvinceFromArea(selectedArea);
+    }
+
+    const monthlyData = monthNames.map((month, index) => {
+      const monthNumber = index + 1;
+
+      let windOutput = 0;
+      if (targetProvince) {
+        const monthData = provinceData.filter(
+          (item: ProvinceData) =>
+            item.provinceName === targetProvince &&
+            item.month === monthNumber &&
+            item.energyID === "WIND"
+        );
+        windOutput =
+          monthData.length > 0
+            ? Math.round(
+                monthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / monthData.length
+              )
+            : 0;
+      } else {
+        const islandProvinces = getIslandProvinces(mapId);
+        const monthData = provinceData.filter(
+          (item: ProvinceData) =>
+            islandProvinces.includes(item.provinceName) &&
+            item.month === monthNumber &&
+            item.energyID === "WIND"
+        );
+        windOutput =
+          monthData.length > 0
+            ? Math.round(
+                monthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / monthData.length
+              )
+            : 0;
+      }
+
+      let solarOutput = 0;
+      let hydroOutput = 0;
+
+      if (targetProvince) {
+        const solarMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            item.provinceName === targetProvince &&
+            item.month === monthNumber &&
+            item.energyID === "SOLAR"
+        );
+        solarOutput =
+          solarMonthData.length > 0
+            ? Math.round(
+                solarMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / solarMonthData.length
+              )
+            : 0;
+
+        const hydroMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            item.provinceName === targetProvince &&
+            item.month === monthNumber &&
+            item.energyID === "HYDRO"
+        );
+        hydroOutput =
+          hydroMonthData.length > 0
+            ? Math.round(
+                hydroMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / hydroMonthData.length
+              )
+            : 0;
+      } else {
+        const islandProvinces = getIslandProvinces(mapId);
+        const solarMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            islandProvinces.includes(item.provinceName) &&
+            item.month === monthNumber &&
+            item.energyID === "SOLAR"
+        );
+        solarOutput =
+          solarMonthData.length > 0
+            ? Math.round(
+                solarMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / solarMonthData.length
+              )
+            : 0;
+
+        const hydroMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            islandProvinces.includes(item.provinceName) &&
+            item.month === monthNumber &&
+            item.energyID === "HYDRO"
+        );
+        hydroOutput =
+          hydroMonthData.length > 0
+            ? Math.round(
+                hydroMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / hydroMonthData.length
+              )
+            : 0;
+      }
+
+      return {
+        month,
+        solarOutput,
+        windOutput,
+        hydroOutput,
+        totalOutput: solarOutput + windOutput + hydroOutput,
+      };
+    });
+
+    return monthlyData;
+  };
+
   const getAreaData = (selectedArea?: string) => {
     const energyData = processEnergyData(selectedArea);
     const totalAnnual = energyData.reduce(
@@ -553,7 +394,6 @@ export default function Dashboard() {
       energyData.reduce((sum, month) => sum + month.hydroOutput, 0) / 12
     );
 
-    // Get area name
     let areaName =
       islandConfig?.name || mapId.charAt(0).toUpperCase() + mapId.slice(1);
     if (selectedArea && islandConfig) {
@@ -583,14 +423,221 @@ export default function Dashboard() {
     };
   };
 
-  // Get processed data
   const energyData = processEnergyData(selectedArea);
   const calculatedAreaData = getAreaData(selectedArea);
   
-  // Use the static data from areaData object for sustainability info
   const data = areaData[selectedArea as keyof typeof areaData] || areaData.jelambar;
 
-  // Enhanced tooltip components with proper typing
+  const callGeminiAPI = async (energyType: 'solar' | 'wind' | 'hydro', message: string = '', useContext: boolean = true) => {
+    try {
+      // Ensure we have valid data before making API call
+      if (!calculatedAreaData || loading || provinceData.length === 0) {
+        console.warn('⚠️ Data not ready for AI API call, skipping...');
+        return {
+          success: false,
+          message: 'Data masih dimuat, silakan tunggu sebentar...'
+        };
+      }
+
+      // Validate that we have meaningful data (not all zeros)
+      const hasValidData = calculatedAreaData.avgSolarOutput > 0 || 
+                          calculatedAreaData.avgWindOutput > 0 || 
+                          calculatedAreaData.avgHydroOutput > 0;
+
+      if (!hasValidData) {
+        console.warn('⚠️ Data contains no valid energy output, using fallback message...');
+        return {
+          success: false,
+          message: 'Data sedang diproses, silakan tunggu beberapa saat...'
+        };
+      }
+
+      console.log(`🔍 Calling AI API with data:`, {
+        energyType,
+        solarOutput: calculatedAreaData.avgSolarOutput,
+        windOutput: calculatedAreaData.avgWindOutput,
+        hydroOutput: calculatedAreaData.avgHydroOutput,
+        hasMessage: !!message
+      });
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          energyType,
+          energyData: calculatedAreaData, // Use dynamic calculated data instead of static data
+          useContext
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Response Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error calling Gemini API:', error);
+      return {
+        success: false,
+        message: 'Maaf, terjadi kesalahan saat memproses permintaan Anda. Silakan coba lagi.'
+      };
+    }
+  };
+
+  // Function untuk generate initial AI analysis
+  const generateInitialAnalysis = async (energyType: 'solar' | 'wind' | 'hydro') => {
+    if (hasInitialAnalysis[energyType]) return;
+
+    setIsLoading(prev => ({ ...prev, [energyType]: true }));
+
+    try {
+      const result = await callGeminiAPI(energyType, '', true);
+      
+      if (result.success) {
+        setChatMessages(prev => ({
+          ...prev,
+          [energyType]: [{
+            type: 'ai',
+            message: result.message,
+            timestamp: new Date().toISOString()
+          }]
+        }));
+
+        setHasInitialAnalysis(prev => ({ ...prev, [energyType]: true }));
+      } else {
+        // If data isn't ready, retry in a few seconds
+        if (result.message.includes('masih dimuat') || result.message.includes('sedang diproses')) {
+          console.log(`🔄 Data not ready for ${energyType}, will retry in 2 seconds...`);
+          setTimeout(() => {
+            generateInitialAnalysis(energyType);
+          }, 2000);
+        } else {
+          // Other errors, set a default message
+          setChatMessages(prev => ({
+            ...prev,
+            [energyType]: [{
+              type: 'ai',
+              message: result.message,
+              timestamp: new Date().toISOString()
+            }]
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error generating initial analysis:', error);
+      setChatMessages(prev => ({
+        ...prev,
+        [energyType]: [{
+          type: 'ai',
+          message: 'Sistem AI sedang dimuat. Silakan tunggu sebentar atau refresh halaman.',
+          timestamp: new Date().toISOString()
+        }]
+      }));
+    } finally {
+      setIsLoading(prev => ({ ...prev, [energyType]: false }));
+    }
+  };
+
+  // Function untuk handle user messages
+  const handleSendMessage = async (energyType: 'solar' | 'wind' | 'hydro') => {
+    const message = currentInput[energyType].trim();
+    if (!message || isLoading[energyType]) return;
+
+    const userMessage = {
+      type: 'user' as const,
+      message,
+      timestamp: new Date().toISOString()
+    };
+
+    setChatMessages(prev => ({
+      ...prev,
+      [energyType]: [...prev[energyType], userMessage]
+    }));
+
+    setCurrentInput(prev => ({
+      ...prev,
+      [energyType]: ''
+    }));
+
+    setIsLoading(prev => ({ ...prev, [energyType]: true }));
+
+    try {
+      const result = await callGeminiAPI(energyType, message, true);
+      
+      if (result.success) {
+        const aiMessage = {
+          type: 'ai' as const,
+          message: result.message,
+          timestamp: new Date().toISOString()
+        };
+
+        setChatMessages(prev => ({
+          ...prev,
+          [energyType]: [...prev[energyType], aiMessage]
+        }));
+
+        setTimeout(() => {
+          const analysisContainer = document.querySelector(`[data-scroll-${energyType}]`);
+          if (analysisContainer) {
+            analysisContainer.scrollTop = analysisContainer.scrollHeight;
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      setChatMessages(prev => ({
+        ...prev,
+        [energyType]: [...prev[energyType], {
+          type: 'ai',
+          message: 'Maaf, terjadi kesalahan saat memproses pesan Anda. Silakan coba lagi.',
+          timestamp: new Date().toISOString()
+        }]
+      }));
+    } finally {
+      setIsLoading(prev => ({ ...prev, [energyType]: false }));
+    }
+  };
+
+  useEffect(() => {
+    if (!loading && provinceData.length > 0) {
+      generateInitialAnalysis('solar');
+      generateInitialAnalysis('wind');
+      generateInitialAnalysis('hydro');
+    }
+  }, [loading, provinceData.length]);
+
+  useEffect(() => {
+    if (!loading && provinceData.length > 0 && selectedArea) {
+      setHasInitialAnalysis({
+        solar: false,
+        wind: false,
+        hydro: false
+      });
+
+      setChatMessages({
+        solar: [],
+        wind: [],
+        hydro: []
+      });
+
+      setTimeout(() => {
+        generateInitialAnalysis('solar');
+        generateInitialAnalysis('wind');
+        generateInitialAnalysis('hydro');
+      }, 10000); 
+    }
+  }, [selectedArea, loading, provinceData.length]);
+
   const SolarTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
@@ -770,68 +817,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Debug Info (only in development) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-sm">
-          <p>🔍 Debug Info:</p>
-          <p>Island: {mapId} | Province Data Records: {provinceData.length}</p>
-          {selectedArea && (
-            <p>Selected Area: {selectedArea} | Province: {getProvinceFromArea(selectedArea)}</p>
-          )}
-        </div>
-      )}
-
-      {/* Compact Bottom Row */}
-      <div className="grid grid-cols-6 gap-4 pb-4">
-        <div className="col-span-2">
-          <Card className="border-0 bg-white/70 backdrop-blur-md shadow-lg rounded-xl h-full overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold text-slate-800 flex items-center">
-                <div className="p-1.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg mr-2 shadow-md">
-                  <Target className="w-3 h-3 text-white" />
-                </div>
-                Energy Mix
-                {selectedArea && (
-                  <span className="text-xs text-green-600 ml-2">
-                    ({selectedArea})
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-1">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gradient-to-r from-orange-400 to-amber-500 rounded-full"></div>
-                    <span className="text-xs font-medium">Solar</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">32%</span>
-                </div>
-                <Progress value={32} className="h-1.5" />
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full"></div>
-                    <span className="text-xs font-medium">Hydro</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">38%</span>
-                </div>
-                <Progress value={38} className="h-1.5" />
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full"></div>
-                    <span className="text-xs font-medium">Wind</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">30%</span>
-                </div>
-                <Progress value={30} className="h-1.5" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Compact Upper Row */}
+      <div className="grid pb-5">
         <div className="col-span-4">
-          <Card className="border-0 bg-white/70 backdrop-blur-md shadow-lg rounded-xl overflow-hidden h-full">
+          <Card className="border-0 bg-white/70 rounded-xl overflow-hidden h-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg mr-2 shadow-md">
