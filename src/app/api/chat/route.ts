@@ -80,24 +80,25 @@ export async function POST(request: NextRequest) {
 }
 
 function generateContextualPrompt(energyType: string, energyData: any, userMessage: string = '') {
+  // Use the actual calculated data from dashboard
   const baseContext = {
     solar: {
-      capacity: energyData.solarCapacity || '850 MW',
-      currentOutput: energyData.currentSolarOutput || 89,
-      avgOutput: energyData.avgSolarOutput || 94,
-      efficiency: energyData.efficiency || 77,
+      capacity: energyData.solarCapacity || '560 kWH',
+      currentOutput: energyData.currentSolarOutput || energyData.avgSolarOutput || 56,
+      avgOutput: energyData.avgSolarOutput || 56,
+      efficiency: energyData.efficiency || 85,
     },
     wind: {
-      capacity: energyData.windCapacity || '450 MW',
-      currentOutput: energyData.currentWindOutput || 42,
+      capacity: energyData.windCapacity || '450 kWH',
+      currentOutput: energyData.currentWindOutput || energyData.avgWindOutput || 42,
       avgOutput: energyData.avgWindOutput || 46,
-      efficiency: energyData.efficiency || 77,
+      efficiency: energyData.efficiency || 85,
     },
     hydro: {
-      capacity: energyData.hydroCapacity || '1,150 MW',
-      currentOutput: energyData.currentHydroOutput || 115,
+      capacity: energyData.hydroCapacity || '1,150 kWH',
+      currentOutput: energyData.currentHydroOutput || energyData.avgHydroOutput || 115,
       avgOutput: energyData.avgHydroOutput || 108,
-      efficiency: energyData.efficiency || 77,
+      efficiency: energyData.efficiency || 85,
     }
   };
 

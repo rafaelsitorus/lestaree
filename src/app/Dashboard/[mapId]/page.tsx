@@ -592,7 +592,7 @@ export default function Dashboard() {
 
   // Regenerate AI analysis when location/area changes
   useEffect(() => {
-    if (!loading && provinceData.length > 0) {
+    if (!loading && provinceData.length > 0 && selectedArea) {
       // Reset the initial analysis flags to allow regeneration
       setHasInitialAnalysis({
         solar: false,
