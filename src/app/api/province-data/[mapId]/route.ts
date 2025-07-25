@@ -16,10 +16,11 @@ const ISLAND_NAME_MAP: Record<string, string> = {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { mapId: string } }
+  { params }: { params: Promise<{ mapId: string }> }
 ) {
   try {
-    const { mapId } = params;
+    // Await the params since they're now a Promise in newer Next.js versions
+    const { mapId } = await params;
     const islandName = ISLAND_NAME_MAP[mapId.toLowerCase()];
 
     console.log(`🔍 API called with mapId: ${mapId}, mapped to: ${islandName}`);
