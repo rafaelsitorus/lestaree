@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 import { getIslandConfig, IslandConfig } from "@/lib/mapConfig";
+
 import {
   Sun,
   Wind,
@@ -14,13 +15,15 @@ import {
   Target,
   ArrowLeft,
   Sparkles,
-  Recycle, // Icon for waste
-  Leaf, // Icon for sustainability
-  Lightbulb, // Icon for suggestions/analysis
+  Recycle,
+  Leaf,
+  Lightbulb,
   Send,
   MessageCircle,
-} from "lucide-react";
-import { useRouter } from "next/navigation";
+  Loader2,
+  RefreshCw,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import {
   Bar,
   BarChart,
@@ -83,7 +86,7 @@ const monthNames = [
   "Dec",
 ];
 
-// Area-specific data with sustainability information
+// Area-specific data with sustainability information (using raja's enhanced version)
 const areaData = {
   jelambar: {
     name: "Jelambar, Jakarta",
@@ -102,21 +105,21 @@ const areaData = {
     currentHydroOutput: 115,
     sustainability: {
       solar: {
-        wasteIssue: "Solar panels contain hazardous materials like cadmium and lead that can contaminate soil and water if not properly recycled.",
-        suggestions: "Implement comprehensive recycling programs, use panels with less toxic materials, and establish take-back programs with manufacturers.",
-        sustainabilityAspects: "Focus on circular economy principles, extended producer responsibility, and development of biodegradable solar technologies."
+        wasteIssue: 'Primary waste: End-of-life **solar panels** containing materials like silicon, aluminum, glass, and trace amounts of heavy metals (cadmium, lead in older panels). Improper disposal can lead to environmental contamination.',
+        suggestions: 'Implement **robust panel recycling programs** with specialized facilities that can recover valuable materials. Prioritize procurement of panels designed for **easier disassembly and reduced hazardous materials**.',
+        sustainabilityAspects: 'Reduced e-waste, enhanced resource recovery, promotion of a circular economy, minimization of landfill burden, and mitigation of potential heavy metal leaching.',
       },
       wind: {
-        wasteIssue: "Wind turbine blades are made of composite materials that are difficult to recycle and often end up in landfills.",
-        suggestions: "Develop recyclable blade materials, create blade recycling facilities, and design modular turbines for easier component replacement.",
-        sustainabilityAspects: "Invest in research for bio-based composite materials, implement blade refurbishment programs, and establish industrial symbiosis networks."
+        wasteIssue: 'Primary waste: **Wind turbine blades**, often made from complex composite materials (fiberglass, carbon fiber, resin) which are currently challenging and expensive to recycle at scale.',
+        suggestions: 'Invest significantly in R&D for **innovative blade recycling technologies** such as pyrolysis, solvolysis, or mechanical grinding to convert composites into new materials.',
+        sustainabilityAspects: 'Minimizing landfill waste, fostering material innovation, creating new economic value from waste, reducing reliance on virgin materials.',
       },
       hydro: {
-        wasteIssue: "Dam construction generates significant concrete waste and disrupts river ecosystems, affecting fish migration and sediment flow.",
-        suggestions: "Use eco-friendly concrete alternatives, implement fish ladders, and consider run-of-river systems that have minimal environmental impact.",
-        sustainabilityAspects: "Focus on small-scale hydro projects, ecosystem restoration, and integration with natural water management systems."
-      }
-    }
+        wasteIssue: 'Primary waste: Primarily **sediment accumulation** in reservoirs over time, which can reduce water storage capacity and impact downstream ecosystems.',
+        suggestions: 'Implement **optimized sediment management strategies** including periodic flushing, sluicing, or mechanical dredging to maintain reservoir volume.',
+        sustainabilityAspects: 'Long-term reservoir viability, preservation of critical aquatic ecosystems, maintenance of water quality, protection of biodiversity.',
+      },
+    },
   },
 };
 
@@ -127,7 +130,7 @@ export default function Dashboard() {
   const [islandConfig, setIslandConfig] = useState<IslandConfig | null>(null);
   const [provinceData, setProvinceData] = useState<ProvinceData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [chatMessages, setChatMessages] = useState<{[key: string]: Array<{type: 'user' | 'ai', message: string}>}>({
+  const [chatMessages, setChatMessages] = useState<{[key: string]: Array<{type: 'user' | 'ai', message: string, timestamp: string}>}>({
     solar: [],
     wind: [],
     hydro: []
@@ -136,6 +139,16 @@ export default function Dashboard() {
     solar: '',
     wind: '',
     hydro: ''
+  });
+  const [isLoading, setIsLoading] = useState<{[key: string]: boolean}>({
+    solar: false,
+    wind: false,
+    hydro: false
+  });
+  const [hasInitialAnalysis, setHasInitialAnalysis] = useState<{[key: string]: boolean}>({
+    solar: false,
+    wind: false,
+    hydro: false
   });
 
   // Get mapId from route parameter
@@ -191,39 +204,54 @@ export default function Dashboard() {
     loadIslandData();
   }, [mapId]);
 
-  const handleSendMessage = (energyType: 'solar' | 'wind' | 'hydro') => {
-    const message = currentInput[energyType].trim();
-    if (!message) return;
-
-    // Add user message
-    setChatMessages(prev => ({
-      ...prev,
-      [energyType]: [...prev[energyType], { type: 'user', message }]
-    }));
-
-    // Clear input
-    setCurrentInput(prev => ({
-      ...prev,
-      [energyType]: ''
-    }));
-
-    // Simulate AI response (you can replace this with actual AI API call)
-    setTimeout(() => {
-      const aiResponse = `Thank you for your question about ${energyType} energy sustainability. This is a simulated AI response that will be replaced with actual AI integration.`;
-      
-      setChatMessages(prev => ({
-        ...prev,
-        [energyType]: [...prev[energyType], { type: 'ai', message: aiResponse }]
-      }));
-
-      // Auto-scroll to show latest AI response
-      setTimeout(() => {
-        const analysisContainer = document.querySelector(`[data-scroll-${energyType}]`);
-        if (analysisContainer) {
-          analysisContainer.scrollTop = analysisContainer.scrollHeight;
-        }
-      }, 100);
-    }, 1000);
+  // Helper function to get provinces for an island (matching your seed data)
+  const getIslandProvinces = (mapId: string): string[] => {
+    const islandToProvinces: Record<string, string[]> = {
+      jawa: [
+        "DKI JAKARTA",
+        "JAWA BARAT",
+        "JAWA TENGAH",
+        "JAWA TIMUR",
+        "DI YOGYAKARTA",
+        "BANTEN",
+      ],
+      sumatera: [
+        "SUMATERA UTARA",
+        "SUMATERA BARAT",
+        "SUMATERA SELATAN",
+        "RIAU",
+        "ACEH",
+        "JAMBI",
+        "BENGKULU",
+        "LAMPUNG",
+        "KEPULAUAN RIAU",
+        "KEPULAUAN BANGKA BELITUNG",
+      ],
+      sulawesi: [
+        "SULAWESI UTARA",
+        "SULAWESI SELATAN",
+        "SULAWESI TENGAH",
+        "SULAWESI TENGGARA",
+        "SULAWESI BARAT",
+        "GORONTALO",
+      ],
+      kalimantan: [
+        "KALIMANTAN BARAT",
+        "KALIMANTAN SELATAN",
+        "KALIMANTAN TENGAH",
+        "KALIMANTAN TIMUR",
+        "KALIMANTAN UTARA",
+      ],
+      papua: [
+        "PAPUA",
+        "PAPUA BARAT",
+        "PAPUA BARAT DAYA",
+        "PAPUA PEGUNUNGAN",
+        "PAPUA SELATAN",
+        "PAPUA TENGAH",
+      ],
+    };
+    return islandToProvinces[mapId.toLowerCase()] || [];
   };
 
   // Function to get province name from selected area
@@ -368,56 +396,6 @@ export default function Dashboard() {
     return monthlyData;
   };
 
-  // Helper function to get provinces for an island (matching your seed data)
-  const getIslandProvinces = (mapId: string): string[] => {
-    const islandToProvinces: Record<string, string[]> = {
-      jawa: [
-        "DKI JAKARTA",
-        "JAWA BARAT",
-        "JAWA TENGAH",
-        "JAWA TIMUR",
-        "DI YOGYAKARTA",
-        "BANTEN",
-      ],
-      sumatera: [
-        "SUMATERA UTARA",
-        "SUMATERA BARAT",
-        "SUMATERA SELATAN",
-        "RIAU",
-        "ACEH",
-        "JAMBI",
-        "BENGKULU",
-        "LAMPUNG",
-        "KEPULAUAN RIAU",
-        "KEPULAUAN BANGKA BELITUNG",
-      ],
-      sulawesi: [
-        "SULAWESI UTARA",
-        "SULAWESI SELATAN",
-        "SULAWESI TENGAH",
-        "SULAWESI TENGGARA",
-        "SULAWESI BARAT",
-        "GORONTALO",
-      ],
-      kalimantan: [
-        "KALIMANTAN BARAT",
-        "KALIMANTAN SELATAN",
-        "KALIMANTAN TENGAH",
-        "KALIMANTAN TIMUR",
-        "KALIMANTAN UTARA",
-      ],
-      papua: [
-        "PAPUA",
-        "PAPUA BARAT",
-        "PAPUA BARAT DAYA",
-        "PAPUA PEGUNUNGAN",
-        "PAPUA SELATAN",
-        "PAPUA TENGAH",
-      ],
-    };
-    return islandToProvinces[mapId.toLowerCase()] || [];
-  };
-
   // Get area-specific data
   const getAreaData = (selectedArea?: string) => {
     const energyData = processEnergyData(selectedArea);
@@ -472,6 +450,228 @@ export default function Dashboard() {
   
   // Use the static data from areaData object for sustainability info
   const data = areaData[selectedArea as keyof typeof areaData] || areaData.jelambar;
+
+  // Function untuk memanggil Gemini API
+  const callGeminiAPI = async (energyType: 'solar' | 'wind' | 'hydro', message: string = '', useContext: boolean = true) => {
+    try {
+      // Ensure we have valid data before making API call
+      if (!calculatedAreaData || loading || provinceData.length === 0) {
+        console.warn('⚠️ Data not ready for AI API call, skipping...');
+        return {
+          success: false,
+          message: 'Data masih dimuat, silakan tunggu sebentar...'
+        };
+      }
+
+      // Validate that we have meaningful data (not all zeros)
+      const hasValidData = calculatedAreaData.avgSolarOutput > 0 || 
+                          calculatedAreaData.avgWindOutput > 0 || 
+                          calculatedAreaData.avgHydroOutput > 0;
+
+      if (!hasValidData) {
+        console.warn('⚠️ Data contains no valid energy output, using fallback message...');
+        return {
+          success: false,
+          message: 'Data sedang diproses, silakan tunggu beberapa saat...'
+        };
+      }
+
+      console.log(`🔍 Calling AI API with data:`, {
+        energyType,
+        solarOutput: calculatedAreaData.avgSolarOutput,
+        windOutput: calculatedAreaData.avgWindOutput,
+        hydroOutput: calculatedAreaData.avgHydroOutput,
+        hasMessage: !!message
+      });
+
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message,
+          energyType,
+          energyData: calculatedAreaData, // Use dynamic calculated data instead of static data
+          useContext
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Response Error:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`API call failed: ${response.status} ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('Error calling Gemini API:', error);
+      return {
+        success: false,
+        message: 'Maaf, terjadi kesalahan saat memproses permintaan Anda. Silakan coba lagi.'
+      };
+    }
+  };
+
+  // Function untuk generate initial AI analysis
+  const generateInitialAnalysis = async (energyType: 'solar' | 'wind' | 'hydro') => {
+    if (hasInitialAnalysis[energyType]) return;
+
+    setIsLoading(prev => ({ ...prev, [energyType]: true }));
+
+    try {
+      const result = await callGeminiAPI(energyType, '', true);
+      
+      if (result.success) {
+        setChatMessages(prev => ({
+          ...prev,
+          [energyType]: [{
+            type: 'ai',
+            message: result.message,
+            timestamp: new Date().toISOString()
+          }]
+        }));
+
+        setHasInitialAnalysis(prev => ({ ...prev, [energyType]: true }));
+      } else {
+        // If data isn't ready, retry in a few seconds
+        if (result.message.includes('masih dimuat') || result.message.includes('sedang diproses')) {
+          console.log(`🔄 Data not ready for ${energyType}, will retry in 2 seconds...`);
+          setTimeout(() => {
+            generateInitialAnalysis(energyType);
+          }, 2000);
+        } else {
+          // Other errors, set a default message
+          setChatMessages(prev => ({
+            ...prev,
+            [energyType]: [{
+              type: 'ai',
+              message: result.message,
+              timestamp: new Date().toISOString()
+            }]
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Error generating initial analysis:', error);
+      // Set error message
+      setChatMessages(prev => ({
+        ...prev,
+        [energyType]: [{
+          type: 'ai',
+          message: 'Sistem AI sedang dimuat. Silakan tunggu sebentar atau refresh halaman.',
+          timestamp: new Date().toISOString()
+        }]
+      }));
+    } finally {
+      setIsLoading(prev => ({ ...prev, [energyType]: false }));
+    }
+  };
+
+  // Function untuk handle user messages
+  const handleSendMessage = async (energyType: 'solar' | 'wind' | 'hydro') => {
+    const message = currentInput[energyType].trim();
+    if (!message || isLoading[energyType]) return;
+
+    // Add user message
+    const userMessage = {
+      type: 'user' as const,
+      message,
+      timestamp: new Date().toISOString()
+    };
+
+    setChatMessages(prev => ({
+      ...prev,
+      [energyType]: [...prev[energyType], userMessage]
+    }));
+
+    // Clear input
+    setCurrentInput(prev => ({
+      ...prev,
+      [energyType]: ''
+    }));
+
+    // Set loading state
+    setIsLoading(prev => ({ ...prev, [energyType]: true }));
+
+    try {
+      const result = await callGeminiAPI(energyType, message, true);
+      
+      if (result.success) {
+        const aiMessage = {
+          type: 'ai' as const,
+          message: result.message,
+          timestamp: new Date().toISOString()
+        };
+
+        setChatMessages(prev => ({
+          ...prev,
+          [energyType]: [...prev[energyType], aiMessage]
+        }));
+
+        // Auto-scroll to show latest message
+        setTimeout(() => {
+          const analysisContainer = document.querySelector(`[data-scroll-${energyType}]`);
+          if (analysisContainer) {
+            analysisContainer.scrollTop = analysisContainer.scrollHeight;
+          }
+        }, 100);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Add error message
+      setChatMessages(prev => ({
+        ...prev,
+        [energyType]: [...prev[energyType], {
+          type: 'ai',
+          message: 'Maaf, terjadi kesalahan saat memproses pesan Anda. Silakan coba lagi.',
+          timestamp: new Date().toISOString()
+        }]
+      }));
+    } finally {
+      setIsLoading(prev => ({ ...prev, [energyType]: false }));
+    }
+  };
+
+  // Generate initial analysis on component mount
+  useEffect(() => {
+    if (!loading && provinceData.length > 0) {
+      generateInitialAnalysis('solar');
+      generateInitialAnalysis('wind');
+      generateInitialAnalysis('hydro');
+    }
+  }, [loading, provinceData.length]);
+
+  // Regenerate AI analysis when location/area changes
+  useEffect(() => {
+    if (!loading && provinceData.length > 0 && selectedArea) {
+      // Reset the initial analysis flags to allow regeneration
+      setHasInitialAnalysis({
+        solar: false,
+        wind: false,
+        hydro: false
+      });
+
+      // Clear existing chat messages for the new location
+      setChatMessages({
+        solar: [],
+        wind: [],
+        hydro: []
+      });
+
+      // Generate new analysis with updated data
+      setTimeout(() => {
+        generateInitialAnalysis('solar');
+        generateInitialAnalysis('wind');
+        generateInitialAnalysis('hydro');
+      }, 100); // Small delay to ensure state updates are processed
+    }
+  }, [selectedArea, loading, provinceData.length]); // Trigger when selectedArea changes
 
   // Enhanced tooltip components with proper typing
   const SolarTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
@@ -596,7 +796,6 @@ export default function Dashboard() {
     );
   }
 
-  // Calculate forecast card height
   const forecastCardHeight = '280px';
 
   return (
@@ -667,7 +866,6 @@ export default function Dashboard() {
 
       {/* Compact Bottom Row */}
       <div className="grid grid-cols-6 gap-4 pb-4">
-        {/* Compact Energy Mix */}
         <div className="col-span-2">
           <Card className="border-0 bg-white/70 backdrop-blur-md shadow-lg rounded-xl h-full overflow-hidden">
             <CardHeader className="pb-2">
@@ -715,8 +913,6 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Compact Summary */}
         <div className="col-span-4">
           <Card className="border-0 bg-white/70 backdrop-blur-md shadow-lg rounded-xl overflow-hidden h-full">
             <CardHeader className="pb-2">
@@ -786,9 +982,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Solar Energy Row with Sustainability Card */}
+      {/* Solar Energy Row with AI Integration */}
       <div className="grid grid-cols-4 gap-4 mb-4">
-        {/* Solar Forecast Card */}
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}>
@@ -833,16 +1028,8 @@ export default function Dashboard() {
                     <AreaChart data={energyData} key={selectedArea}>
                       <defs>
                         <linearGradient id="solarGradient" x1="0" y1="0" x2="0" y2="1">
-                          <stop
-                            offset="5%"
-                            stopColor="rgb(251 146 60)"
-                            stopOpacity={0.8}
-                          />
-                          <stop
-                            offset="95%"
-                            stopColor="rgb(251 146 60)"
-                            stopOpacity={0.1}
-                          />
+                          <stop offset="5%" stopColor="rgb(251 146 60)" stopOpacity={0.8} />
+                          <stop offset="95%" stopColor="rgb(251 146 60)" stopOpacity={0.1} />
                         </linearGradient>
                       </defs>
                       <XAxis dataKey="month" hide />
@@ -870,16 +1057,27 @@ export default function Dashboard() {
           </Card>
         </div>
 
-        {/* Solar Sustainability Card */}
+        {/* Solar Sustainability Card with AI Integration */}
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-slate-50 to-orange-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold text-slate-800 flex items-center">
-                <div className="p-1.5 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg mr-2 shadow-md">
-                  <Lightbulb className="w-3 h-3 text-white" />
+              <CardTitle className="text-base font-bold text-slate-800 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-1.5 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg mr-2 shadow-md">
+                    <Lightbulb className="w-3 h-3 text-white" />
+                  </div>
+                  Solar Sustainability
                 </div>
-                Solar Sustainability
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => generateInitialAnalysis('solar')}
+                  disabled={isLoading.solar}
+                  className="h-6 w-6 p-0"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoading.solar ? 'animate-spin' : ''}`} />
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
@@ -890,48 +1088,31 @@ export default function Dashboard() {
                     <span className="font-semibold text-slate-800 text-xs">AI Analysis</span>
                   </div>
                   <div className="space-y-2 overflow-y-auto max-h-32" data-scroll-solar>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Recycle className="w-4 h-4 mr-2 mt-1 text-orange-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Waste Issue: </span>
-                          {data.sustainability.solar.wasteIssue}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Suggestions: </span>
-                          {data.sustainability.solar.suggestions}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Leaf className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Aspects: </span>
-                          {data.sustainability.solar.sustainabilityAspects}
-                        </span>
-                      </p>
-                    </div>
+                    {isLoading.solar && chatMessages.solar.length === 0 && (
+                      <div className="flex items-center justify-center p-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-orange-600" />
+                        <span className="ml-2 text-xs text-slate-600">Generating analysis...</span>
+                      </div>
+                    )}
+                    
                     {chatMessages.solar.filter(msg => msg.type === 'ai').map((msg, index) => (
-                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
-                        <span className="font-medium">AI:</span> {msg.message}
+                      <div key={index} className="text-xs p-2 rounded-lg bg-orange-50 text-orange-800 border border-orange-200">
+                        <div className="flex items-start">
+                          <Sparkles className="w-3 h-3 mr-2 mt-1 text-orange-600 flex-shrink-0" />
+                          <div className="whitespace-pre-wrap">{msg.message}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="border-l pl-3">
+                <div className="border-l pl-3 flex flex-col">
                   <div className="flex items-center mb-2">
                     <MessageCircle className="w-4 h-4 mr-2 text-orange-600" />
-                    <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
+                    <span className="font-semibold text-slate-800 text-xs">AI Chat</span>
                   </div>
                   
-                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
+                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto flex-1">
                     {chatMessages.solar.filter(msg => msg.type === 'user').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-orange-100 text-orange-800">
                         <span className="font-medium">You:</span> {msg.message}
@@ -939,21 +1120,27 @@ export default function Dashboard() {
                     ))}
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-auto">
                     <input
                       type="text"
                       value={currentInput.solar}
                       onChange={(e) => setCurrentInput(prev => ({ ...prev, solar: e.target.value }))}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('solar')}
-                      placeholder="Ask about solar..."
-                      className="flex-1 px-2 py-1 text-xs border border-orange-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                      placeholder="Ask about solar sustainability..."
+                      disabled={isLoading.solar}
+                      className="flex-1 px-2 py-1 text-xs border border-orange-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:opacity-50"
                     />
                     <Button 
                       size="sm" 
                       onClick={() => handleSendMessage('solar')}
-                      className="px-2 py-1 h-auto bg-orange-500 hover:bg-orange-600"
+                      disabled={isLoading.solar || !currentInput.solar.trim()}
+                      className="px-2 py-1 h-auto bg-orange-500 hover:bg-orange-600 disabled:opacity-50"
                     >
-                      <Send className="w-3 h-3" />
+                      {isLoading.solar ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -963,7 +1150,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Wind Energy Row with Sustainability Card */}
+      {/* Wind Energy Row with AI Integration */}
       <div className="grid grid-cols-4 gap-4 mb-4">
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-sky-50 shadow-lg rounded-xl overflow-hidden"
@@ -1035,11 +1222,22 @@ export default function Dashboard() {
           <Card className="border-0 bg-gradient-to-br from-slate-50 to-blue-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold text-slate-800 flex items-center">
-                <div className="p-1.5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg mr-2 shadow-md">
-                  <Lightbulb className="w-3 h-3 text-white" />
+              <CardTitle className="text-base font-bold text-slate-800 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-1.5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg mr-2 shadow-md">
+                    <Lightbulb className="w-3 h-3 text-white" />
+                  </div>
+                  Wind Sustainability
                 </div>
-                Wind Sustainability
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => generateInitialAnalysis('wind')}
+                  disabled={isLoading.wind}
+                  className="h-6 w-6 p-0"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoading.wind ? 'animate-spin' : ''}`} />
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
@@ -1050,48 +1248,31 @@ export default function Dashboard() {
                     <span className="font-semibold text-slate-800 text-xs">AI Analysis</span>
                   </div>
                   <div className="space-y-2 overflow-y-auto max-h-32" data-scroll-wind>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Recycle className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Waste Issue: </span>
-                          {data.sustainability.wind.wasteIssue}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Suggestions: </span>
-                          {data.sustainability.wind.suggestions}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Leaf className="w-4 h-4 mr-2 mt-1 text-emerald-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Aspects: </span>
-                          {data.sustainability.wind.sustainabilityAspects}
-                        </span>
-                      </p>
-                    </div>
+                    {isLoading.wind && chatMessages.wind.length === 0 && (
+                      <div className="flex items-center justify-center p-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                        <span className="ml-2 text-xs text-slate-600">Generating analysis...</span>
+                      </div>
+                    )}
+                    
                     {chatMessages.wind.filter(msg => msg.type === 'ai').map((msg, index) => (
-                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
-                        <span className="font-medium">AI:</span> {msg.message}
+                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800 border border-blue-200">
+                        <div className="flex items-start">
+                          <Sparkles className="w-3 h-3 mr-2 mt-1 text-blue-600 flex-shrink-0" />
+                          <div className="whitespace-pre-wrap">{msg.message}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="border-l pl-3">
+                <div className="border-l pl-3 flex flex-col">
                   <div className="flex items-center mb-2">
                     <MessageCircle className="w-4 h-4 mr-2 text-blue-600" />
-                    <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
+                    <span className="font-semibold text-slate-800 text-xs">AI Chat</span>
                   </div>
                   
-                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
+                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto flex-1">
                     {chatMessages.wind.filter(msg => msg.type === 'user').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-blue-100 text-blue-800">
                         <span className="font-medium">You:</span> {msg.message}
@@ -1099,21 +1280,27 @@ export default function Dashboard() {
                     ))}
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-auto">
                     <input
                       type="text"
                       value={currentInput.wind}
                       onChange={(e) => setCurrentInput(prev => ({ ...prev, wind: e.target.value }))}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('wind')}
-                      placeholder="Ask about wind..."
-                      className="flex-1 px-2 py-1 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+                      placeholder="Ask about wind sustainability..."
+                      disabled={isLoading.wind}
+                      className="flex-1 px-2 py-1 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300 disabled:opacity-50"
                     />
                     <Button 
                       size="sm" 
                       onClick={() => handleSendMessage('wind')}
-                      className="px-2 py-1 h-auto bg-blue-500 hover:bg-blue-600"
+                      disabled={isLoading.wind || !currentInput.wind.trim()}
+                      className="px-2 py-1 h-auto bg-blue-500 hover:bg-blue-600 disabled:opacity-50"
                     >
-                      <Send className="w-3 h-3" />
+                      {isLoading.wind ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3" />
+                      )}
                     </Button>
                   </div>
                 </div>
@@ -1123,7 +1310,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Hydro Energy Row with Sustainability Card */}
+      {/* Hydro Energy Row with AI Integration */}
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 shadow-lg rounded-xl overflow-hidden"
@@ -1187,11 +1374,22 @@ export default function Dashboard() {
           <Card className="border-0 bg-gradient-to-br from-slate-50 to-emerald-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold text-slate-800 flex items-center">
-                <div className="p-1.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg mr-2 shadow-md">
-                  <Lightbulb className="w-3 h-3 text-white" />
+              <CardTitle className="text-base font-bold text-slate-800 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="p-1.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg mr-2 shadow-md">
+                    <Lightbulb className="w-3 h-3 text-white" />
+                  </div>
+                  Hydro Sustainability
                 </div>
-                Hydro Sustainability
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => generateInitialAnalysis('hydro')}
+                  disabled={isLoading.hydro}
+                  className="h-6 w-6 p-0"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isLoading.hydro ? 'animate-spin' : ''}`} />
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
@@ -1202,48 +1400,31 @@ export default function Dashboard() {
                     <span className="font-semibold text-slate-800 text-xs">AI Analysis</span>
                   </div>
                   <div className="space-y-2 overflow-y-auto max-h-32" data-scroll-hydro>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Recycle className="w-4 h-4 mr-2 mt-1 text-emerald-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Waste Issue: </span>
-                          {data.sustainability.hydro.wasteIssue}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Suggestions: </span>
-                          {data.sustainability.hydro.suggestions}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
-                      <p className="flex items-start">
-                        <Leaf className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
-                        <span>
-                          <span className="font-medium">Aspects: </span>
-                          {data.sustainability.hydro.sustainabilityAspects}
-                        </span>
-                      </p>
-                    </div>
+                    {isLoading.hydro && chatMessages.hydro.length === 0 && (
+                      <div className="flex items-center justify-center p-4">
+                        <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+                        <span className="ml-2 text-xs text-slate-600">Generating analysis...</span>
+                      </div>
+                    )}
+                    
                     {chatMessages.hydro.filter(msg => msg.type === 'ai').map((msg, index) => (
-                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
-                        <span className="font-medium">AI:</span> {msg.message}
+                      <div key={index} className="text-xs p-2 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        <div className="flex items-start">
+                          <Sparkles className="w-3 h-3 mr-2 mt-1 text-emerald-600 flex-shrink-0" />
+                          <div className="whitespace-pre-wrap">{msg.message}</div>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <div className="border-l pl-3">
+                <div className="border-l pl-3 flex flex-col">
                   <div className="flex items-center mb-2">
                     <MessageCircle className="w-4 h-4 mr-2 text-emerald-600" />
-                    <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
+                    <span className="font-semibold text-slate-800 text-xs">AI Chat</span>
                   </div>
                   
-                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
+                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto flex-1">
                     {chatMessages.hydro.filter(msg => msg.type === 'user').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-emerald-100 text-emerald-800">
                         <span className="font-medium">You:</span> {msg.message}
@@ -1251,21 +1432,27 @@ export default function Dashboard() {
                     ))}
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex gap-2 mt-auto">
                     <input
                       type="text"
                       value={currentInput.hydro}
                       onChange={(e) => setCurrentInput(prev => ({ ...prev, hydro: e.target.value }))}
                       onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('hydro')}
-                      placeholder="Ask about hydro..."
-                      className="flex-1 px-2 py-1 text-xs border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                      placeholder="Ask about hydro sustainability..."
+                      disabled={isLoading.hydro}
+                      className="flex-1 px-2 py-1 text-xs border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:opacity-50"
                     />
                     <Button 
                       size="sm" 
                       onClick={() => handleSendMessage('hydro')}
-                      className="px-2 py-1 h-auto bg-emerald-500 hover:bg-emerald-600"
+                      disabled={isLoading.hydro || !currentInput.hydro.trim()}
+                      className="px-2 py-1 h-auto bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50"
                     >
-                      <Send className="w-3 h-3" />
+                      {isLoading.hydro ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3" />
+                      )}
                     </Button>
                   </div>
                 </div>
