@@ -15,9 +15,44 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id Int @id @default(autoincrement())
-  email String @unique
-  name String? 
-  createdAt DateTime @default(now())
+
+model Island {
+  id         Int        @id @default(autoincrement())
+  islandName String     @unique
+  provinces  Province[]
+
+  @@map("islands")
+}
+
+model Province {
+  id            Int            @id @default(autoincrement())
+  provinceName  String         @unique
+  islandName    String
+  primarySource String?
+  island        Island         @relation(fields: [islandName], references: [islandName])
+  provinceData  ProvinceData[]
+
+  @@map("provinces")
+}
+
+model EnergyType {
+  id           Int            @id @default(autoincrement())
+  energyID     String         @unique
+  energyName   String
+  provinceData ProvinceData[]
+
+  @@map("energy_types")
+}
+
+model ProvinceData {
+  id           Int        @id @default(autoincrement())
+  provinceName String
+  energyID     String
+  month        Int
+  output       Float
+  province     Province   @relation(fields: [provinceName], references: [provinceName])
+  energyType   EnergyType @relation(fields: [energyID], references: [energyID])
+
+  @@unique([provinceName, energyID, month])
+  @@map("province_data")
 }

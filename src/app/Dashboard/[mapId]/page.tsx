@@ -1,9 +1,11 @@
-'use client';
-
-import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
-import { Button } from '@/components/ui/button';
+"use client";
+import React, { useState, useEffect } from "react";
+import { useParams } from "next/navigation";
+import DynamicMap from "@/components/DynamicMap";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
+import { getIslandConfig, IslandConfig } from "@/lib/mapConfig";
 import {
   Sun,
   Wind,
@@ -11,15 +13,14 @@ import {
   Zap,
   Target,
   ArrowLeft,
-  Activity,
   Sparkles,
   Recycle, // Icon for waste
   Leaf, // Icon for sustainability
   Lightbulb, // Icon for suggestions/analysis
   Send,
   MessageCircle,
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
+} from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   Bar,
   BarChart,
@@ -31,185 +32,101 @@ import {
   Area,
   AreaChart,
   Tooltip,
-} from 'recharts';
-import JakartaMap from '@/components/JakartaMap';
+} from "recharts";
 
-// Area-specific data
+// Types for database data
+interface ProvinceData {
+  id: number;
+  provinceName: string;
+  energyID: string;
+  month: number;
+  output: number;
+  province: {
+    provinceName: string;
+    islandName: string;
+    primarySource: string | null;
+  };
+  energyType: {
+    energyID: string;
+    energyName: string;
+  };
+}
+
+// Types for tooltip props
+interface TooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    payload: {
+      month: string;
+      solarOutput: number;
+      windOutput: number;
+      hydroOutput: number;
+      totalOutput: number;
+    };
+  }>;
+  label?: string;
+}
+
+// Month names for display
+const monthNames = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+// Area-specific data with sustainability information
 const areaData = {
   jelambar: {
-    name: 'Jelambar, Jakarta',
-    totalCapacity: '2,450 MW',
-    currentOutput: '1,890 MW',
+    name: "Jelambar, Jakarta",
+    totalCapacity: "2,450 MW",
+    currentOutput: "1,890 MW",
     efficiency: 77,
-    carbonOffset: '3.2M tons',
-    solarCapacity: '850 MW',
-    windCapacity: '450 MW',
-    hydroCapacity: '1,150 MW',
+    carbonOffset: "3.2M tons",
+    solarCapacity: "850 MW",
+    windCapacity: "450 MW",
+    hydroCapacity: "1,150 MW",
     avgSolarOutput: 94,
     avgWindOutput: 46,
     avgHydroOutput: 108,
     currentSolarOutput: 89,
     currentWindOutput: 42,
     currentHydroOutput: 115,
-    // Sustainability Data
     sustainability: {
       solar: {
-        wasteIssue: 'Primary waste: End-of-life **solar panels** containing materials like silicon, aluminum, glass, and trace amounts of heavy metals (cadmium, lead in older panels). Improper disposal can lead to environmental contamination.',
-        suggestions: 'Implement **robust panel recycling programs** with specialized facilities that can recover valuable materials. Prioritize procurement of panels designed for **easier disassembly and reduced hazardous materials**. Research and adopt advanced recycling techniques to **maximize resource recovery**. Consider **repurposing functional components** into new applications.',
-        sustainabilityAspects: 'Reduced e-waste, enhanced resource recovery, promotion of a circular economy, minimization of landfill burden, and mitigation of potential heavy metal leaching into soil and water.',
+        wasteIssue: "Solar panels contain hazardous materials like cadmium and lead that can contaminate soil and water if not properly recycled.",
+        suggestions: "Implement comprehensive recycling programs, use panels with less toxic materials, and establish take-back programs with manufacturers.",
+        sustainabilityAspects: "Focus on circular economy principles, extended producer responsibility, and development of biodegradable solar technologies."
       },
       wind: {
-        wasteIssue: 'Primary waste: **Wind turbine blades**, often made from complex composite materials (fiberglass, carbon fiber, resin) which are currently challenging and expensive to recycle at scale. Other components like nacelles and towers are largely recyclable metals.',
-        suggestions: 'Invest significantly in R&D for **innovative blade recycling technologies** such as pyrolysis, solvolysis, or mechanical grinding to convert composites into new materials. Explore **repurposing older blades** for new structural uses like pedestrian bridges, bus stops, or even artistic installations. Advocate for **design for recyclability** in new turbine blade manufacturing to simplify end-of-life processing.',
-        sustainabilityAspects: 'Minimizing landfill waste, fostering material innovation, creating new economic value from waste, reducing reliance on virgin materials, and contributing to a more sustainable industrial ecosystem.',
+        wasteIssue: "Wind turbine blades are made of composite materials that are difficult to recycle and often end up in landfills.",
+        suggestions: "Develop recyclable blade materials, create blade recycling facilities, and design modular turbines for easier component replacement.",
+        sustainabilityAspects: "Invest in research for bio-based composite materials, implement blade refurbishment programs, and establish industrial symbiosis networks."
       },
       hydro: {
-        wasteIssue: 'Primary waste: Primarily **sediment accumulation** in reservoirs over time, which can reduce water storage capacity and impact downstream ecosystems by altering natural sediment flows. Minimal operational waste compared to thermal or nuclear plants.',
-        suggestions: 'Implement **optimized sediment management strategies** including periodic flushing, sluicing, or mechanical dredging to maintain reservoir volume and natural river functions. Conduct regular and thorough **environmental impact assessments** to monitor and mitigate effects on aquatic life and riverine habitats. Foster **community engagement** in watershed protection, reforestation efforts, and sustainable land use practices upstream to reduce erosion and sediment input.',
-        sustainabilityAspects: 'Long-term reservoir viability, preservation of critical aquatic ecosystems, maintenance of water quality, protection of biodiversity, and enhancement of overall watershed health.',
-      },
-    },
+        wasteIssue: "Dam construction generates significant concrete waste and disrupts river ecosystems, affecting fish migration and sediment flow.",
+        suggestions: "Use eco-friendly concrete alternatives, implement fish ladders, and consider run-of-river systems that have minimal environmental impact.",
+        sustainabilityAspects: "Focus on small-scale hydro projects, ecosystem restoration, and integration with natural water management systems."
+      }
+    }
   },
-  // You can add more area data here with their specific sustainability info
-};
-
-// Renewable energy forecast data (same as before)
-const solarForecastData = [
-  { month: 'Jan', output: 85, efficiency: 78, peak: '12:00 PM', conditions: 'Sunny' },
-  { month: 'Feb', output: 92, efficiency: 82, peak: '12:30 PM', conditions: 'Clear' },
-  { month: 'Mar', output: 88, efficiency: 80, peak: '12:15 PM', conditions: 'Partly Cloudy' },
-  { month: 'Apr', output: 95, efficiency: 85, peak: '11:45 AM', conditions: 'Sunny' },
-  { month: 'May', output: 102, efficiency: 88, peak: '11:30 AM', conditions: 'Clear' },
-  { month: 'Jun', output: 98, efficiency: 86, peak: '11:15 AM', conditions: 'Sunny' },
-  { month: 'Jul', output: 105, efficiency: 90, peak: '11:00 AM', conditions: 'Clear' },
-  { month: 'Aug', output: 108, efficiency: 92, peak: '11:15 AM', conditions: 'Sunny' },
-  { month: 'Sep', output: 96, efficiency: 84, peak: '11:45 AM', conditions: 'Partly Cloudy' },
-  { month: 'Oct', output: 90, efficiency: 81, peak: '12:00 PM', conditions: 'Cloudy' },
-  { month: 'Nov', output: 87, efficiency: 79, peak: '12:15 PM', conditions: 'Overcast' },
-  { month: 'Dec', output: 83, efficiency: 76, peak: '12:30 PM', conditions: 'Rainy' },
-];
-
-const windForecastData = [
-  { month: 'Jan', output: 45, speed: 12, direction: 'NE', turbines: 15 },
-  { month: 'Feb', output: 52, speed: 14, direction: 'N', turbines: 18 },
-  { month: 'Mar', output: 48, speed: 13, direction: 'NW', turbines: 16 },
-  { month: 'Apr', output: 55, speed: 15, direction: 'N', turbines: 20 },
-  { month: 'May', output: 42, speed: 11, direction: 'SE', turbines: 14 },
-  { month: 'Jun', output: 38, speed: 10, direction: 'S', turbines: 12 },
-  { month: 'Jul', output: 41, speed: 11, direction: 'SE', turbines: 13 },
-  { month: 'Aug', output: 44, speed: 12, direction: 'E', turbines: 15 },
-  { month: 'Sep', output: 47, speed: 13, direction: 'NE', turbines: 16 },
-  { month: 'Oct', output: 51, speed: 14, direction: 'N', turbines: 17 },
-  { month: 'Nov', output: 49, speed: 13, direction: 'NW', turbines: 16 },
-  { month: 'Dec', output: 46, speed: 12, direction: 'NE', turbines: 15 },
-];
-
-const hydroForecastData = [
-  { month: 'Jan', output: 120, rainfall: 85, reservoir: '82%', flow: 'High' },
-  { month: 'Feb', output: 135, rainfall: 95, reservoir: '88%', flow: 'Very High' },
-  { month: 'Mar', output: 142, rainfall: 102, reservoir: '95%', flow: 'Peak' },
-  { month: 'Apr', output: 118, rainfall: 82, reservoir: '85%', flow: 'High' },
-  { month: 'May', output: 95, rainfall: 65, reservoir: '72%', flow: 'Medium' },
-  { month: 'Jun', output: 78, rainfall: 52, reservoir: '65%', flow: 'Low' },
-  { month: 'Jul', output: 72, rainfall: 48, reservoir: '58%', flow: 'Low' },
-  { month: 'Aug', output: 68, rainfall: 45, reservoir: '52%', flow: 'Very Low' },
-  { month: 'Sep', output: 85, rainfall: 58, reservoir: '62%', flow: 'Medium' },
-  { month: 'Oct', output: 112, rainfall: 78, reservoir: '75%', flow: 'High' },
-  { month: 'Nov', output: 128, rainfall: 88, reservoir: '82%', flow: 'High' },
-  { month: 'Dec', output: 138, rainfall: 98, reservoir: '90%', flow: 'Very High' },
-];
-
-// Enhanced tooltip components with modern styling (unchanged)
-const SolarTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-white/95 backdrop-blur-md p-4 border border-orange/30 rounded-xl shadow-xl z-50 transform -translate-x-1/2 -translate-y-full mb-2">
-        <p className="font-bold text-orange mb-2 flex items-center">
-          <Sun className="w-4 h-4 mr-2" />
-          {label}
-        </p>
-        <div className="space-y-1 text-sm text-orange">
-          <p>
-            Output: <span className="font-semibold">{data.output} MW</span>
-          </p>
-          <p>
-            Efficiency: <span className="font-semibold">{data.efficiency}%</span>
-          </p>
-          <p>
-            Peak Time: <span className="font-medium">{data.peak}</span>
-          </p>
-          <p>
-            Conditions: <span className="font-medium">{data.conditions}</span>
-          </p>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-const WindTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-white/95 backdrop-blur-md p-4 border border-blue/30 rounded-xl shadow-xl z-50 transform -translate-x-1/2 -translate-y-full mb-2">
-        <p className="font-bold text-blue mb-2 flex items-center">
-          <Wind className="w-4 h-4 mr-2" />
-          {label}
-        </p>
-        <div className="space-y-1 text-sm text-blue">
-          <p>
-            Output: <span className="font-semibold">{data.output} MW</span>
-          </p>
-          <p>
-            Wind Speed: <span className="font-semibold">{data.speed} m/s</span>
-          </p>
-          <p>
-            Direction: <span className="font-medium">{data.direction}</span>
-          </p>
-          <p>
-            Active Turbines: <span className="font-medium">{data.turbines}</span>
-          </p>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
-
-const HydroTooltip = ({ active, payload, label }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0].payload;
-    return (
-      <div className="bg-white/95 backdrop-blur-md p-4 border border-emrald/30 rounded-xl shadow-xl z-50 transform -translate-x-1/2 -translate-y-full mb-2">
-        <p className="font-bold text-[#03522D] mb-2 flex items-center">
-          <Waves className="w-4 h-4 mr-2" />
-          {label}
-        </p>
-        <div className="space-y-1 text-sm text-[#197A56]">
-          <p>
-            Output: <span className="font-semibold">{data.output} MW</span>
-          </p>
-          <p>
-            Rainfall: <span className="font-semibold">{data.rainfall} mm</span>
-          </p>
-          <p>
-            Reservoir Level: <span className="font-medium">{data.reservoir}</span>
-          </p>
-          <p>
-            Water Flow: <span className="font-medium">{data.flow}</span>
-          </p>
-        </div>
-      </div>
-    );
-  }
-  return null;
 };
 
 export default function Dashboard() {
   const router = useRouter();
-  const [selectedArea, setSelectedArea] = useState('jelambar');
+  const params = useParams();
+  const [selectedArea, setSelectedArea] = useState<string>("jelambar");
+  const [islandConfig, setIslandConfig] = useState<IslandConfig | null>(null);
+  const [provinceData, setProvinceData] = useState<ProvinceData[]>([]);
+  const [loading, setLoading] = useState(true);
   const [chatMessages, setChatMessages] = useState<{[key: string]: Array<{type: 'user' | 'ai', message: string}>}>({
     solar: [],
     wind: [],
@@ -220,6 +137,59 @@ export default function Dashboard() {
     wind: '',
     hydro: ''
   });
+
+  // Get mapId from route parameter
+  const mapId = (params?.mapId as string) || "jawa";
+
+  // Load island configuration and data
+  useEffect(() => {
+    const loadIslandData = async () => {
+      try {
+        setLoading(true);
+
+        // Get island configuration
+        const config = getIslandConfig(mapId);
+        setIslandConfig(config);
+
+        if (!config) {
+          console.error(`Island config not found for: ${mapId}`);
+          return;
+        }
+
+        console.log(`🔍 Loading data for island: ${mapId}`);
+
+        // Fetch province data from database API
+        const response = await fetch(`/api/province-data/${mapId}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          setProvinceData(data);
+          console.log(`✅ Loaded ${data.length} records for ${mapId}`);
+        } else {
+          const errorText = await response.text();
+          console.error(
+            "Failed to fetch province data:",
+            response.status,
+            errorText
+          );
+
+          // Try to parse as JSON for better error message
+          try {
+            const errorJson = JSON.parse(errorText);
+            console.error("API Error:", errorJson);
+          } catch {
+            console.error("Raw error response:", errorText);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading island data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadIslandData();
+  }, [mapId]);
 
   const handleSendMessage = (energyType: 'solar' | 'wind' | 'hydro') => {
     const message = currentInput[energyType].trim();
@@ -256,20 +226,382 @@ export default function Dashboard() {
     }, 1000);
   };
 
+  // Function to get province name from selected area
+  const getProvinceFromArea = (areaId: string) => {
+    if (!islandConfig) return null;
+    const area = islandConfig.areas.find((area) => area.id === areaId);
+    return area?.provinceName || null;
+  };
+
+  // Process energy data using database data
+  const processEnergyData = (selectedArea?: string) => {
+    let targetProvince = null;
+
+    if (selectedArea) {
+      targetProvince = getProvinceFromArea(selectedArea);
+    }
+
+    const monthlyData = monthNames.map((month, index) => {
+      const monthNumber = index + 1;
+
+      // Get real wind data from database
+      let windOutput = 0;
+      if (targetProvince) {
+        // Use database data for specific province
+        const monthData = provinceData.filter(
+          (item: ProvinceData) =>
+            item.provinceName === targetProvince &&
+            item.month === monthNumber &&
+            item.energyID === "WIND"
+        );
+        windOutput =
+          monthData.length > 0
+            ? Math.round(
+                monthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / monthData.length
+              )
+            : 0;
+      } else {
+        // Use all provinces in island from database
+        const islandProvinces = getIslandProvinces(mapId);
+        const monthData = provinceData.filter(
+          (item: ProvinceData) =>
+            islandProvinces.includes(item.provinceName) &&
+            item.month === monthNumber &&
+            item.energyID === "WIND"
+        );
+        windOutput =
+          monthData.length > 0
+            ? Math.round(
+                monthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / monthData.length
+              )
+            : 0;
+      }
+
+      // Get real solar and hydro data from database
+      let solarOutput = 0;
+      let hydroOutput = 0;
+
+      if (targetProvince) {
+        // Use database data for specific province
+        const solarMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            item.provinceName === targetProvince &&
+            item.month === monthNumber &&
+            item.energyID === "SOLAR"
+        );
+        solarOutput =
+          solarMonthData.length > 0
+            ? Math.round(
+                solarMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / solarMonthData.length
+              )
+            : 0;
+
+        const hydroMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            item.provinceName === targetProvince &&
+            item.month === monthNumber &&
+            item.energyID === "HYDRO"
+        );
+        hydroOutput =
+          hydroMonthData.length > 0
+            ? Math.round(
+                hydroMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / hydroMonthData.length
+              )
+            : 0;
+      } else {
+        // Use all provinces in island from database
+        const islandProvinces = getIslandProvinces(mapId);
+        const solarMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            islandProvinces.includes(item.provinceName) &&
+            item.month === monthNumber &&
+            item.energyID === "SOLAR"
+        );
+        solarOutput =
+          solarMonthData.length > 0
+            ? Math.round(
+                solarMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / solarMonthData.length
+              )
+            : 0;
+
+        const hydroMonthData = provinceData.filter(
+          (item: ProvinceData) =>
+            islandProvinces.includes(item.provinceName) &&
+            item.month === monthNumber &&
+            item.energyID === "HYDRO"
+        );
+        hydroOutput =
+          hydroMonthData.length > 0
+            ? Math.round(
+                hydroMonthData.reduce(
+                  (sum: number, item: ProvinceData) => sum + item.output,
+                  0
+                ) / hydroMonthData.length
+              )
+            : 0;
+      }
+
+      return {
+        month,
+        solarOutput,
+        windOutput,
+        hydroOutput,
+        totalOutput: solarOutput + windOutput + hydroOutput,
+      };
+    });
+
+    return monthlyData;
+  };
+
+  // Helper function to get provinces for an island (matching your seed data)
+  const getIslandProvinces = (mapId: string): string[] => {
+    const islandToProvinces: Record<string, string[]> = {
+      jawa: [
+        "DKI JAKARTA",
+        "JAWA BARAT",
+        "JAWA TENGAH",
+        "JAWA TIMUR",
+        "DI YOGYAKARTA",
+        "BANTEN",
+      ],
+      sumatra: [
+        "SUMATERA UTARA",
+        "SUMATERA BARAT",
+        "SUMATERA SELATAN",
+        "RIAU",
+        "ACEH",
+        "JAMBI",
+        "BENGKULU",
+        "LAMPUNG",
+        "KEPULAUAN RIAU",
+        "KEPULAUAN BANGKA BELITUNG",
+      ],
+      sulawesi: [
+        "SULAWESI UTARA",
+        "SULAWESI SELATAN",
+        "SULAWESI TENGAH",
+        "SULAWESI TENGGARA",
+        "SULAWESI BARAT",
+        "GORONTALO",
+      ],
+      kalimantan: [
+        "KALIMANTAN BARAT",
+        "KALIMANTAN SELATAN",
+        "KALIMANTAN TENGAH",
+        "KALIMANTAN TIMUR",
+        "KALIMANTAN UTARA",
+      ],
+      papua: [
+        "PAPUA",
+        "PAPUA BARAT",
+        "PAPUA BARAT DAYA",
+        "PAPUA PEGUNUNGAN",
+        "PAPUA SELATAN",
+        "PAPUA TENGAH",
+      ],
+    };
+    return islandToProvinces[mapId.toLowerCase()] || [];
+  };
+
+  // Get area-specific data
+  const getAreaData = (selectedArea?: string) => {
+    const energyData = processEnergyData(selectedArea);
+    const totalAnnual = energyData.reduce(
+      (sum, month) => sum + month.totalOutput,
+      0
+    );
+
+    const avgSolar = Math.round(
+      energyData.reduce((sum, month) => sum + month.solarOutput, 0) / 12
+    );
+    const avgWind = Math.round(
+      energyData.reduce((sum, month) => sum + month.windOutput, 0) / 12
+    );
+    const avgHydro = Math.round(
+      energyData.reduce((sum, month) => sum + month.hydroOutput, 0) / 12
+    );
+
+    // Get area name
+    let areaName =
+      islandConfig?.name || mapId.charAt(0).toUpperCase() + mapId.slice(1);
+    if (selectedArea && islandConfig) {
+      const area = islandConfig.areas.find((area) => area.id === selectedArea);
+      areaName = area ? area.name : areaName;
+    }
+
+    return {
+      name: areaName,
+      totalCapacity: `${Math.round(totalAnnual * 1.2).toLocaleString(
+        "en-US"
+      )} kWH`,
+      currentOutput: `${Math.round(totalAnnual * 0.8).toLocaleString(
+        "en-US"
+      )} kWH`,
+      efficiency: 85,
+      carbonOffset: "4.2M tons",
+      solarCapacity: `${(avgSolar * 10).toLocaleString("en-US")} kWH`,
+      windCapacity: `${(avgWind * 15).toLocaleString("en-US")} kWH`,
+      hydroCapacity: `${(avgHydro * 8).toLocaleString("en-US")} kWH`,
+      avgSolarOutput: avgSolar,
+      avgWindOutput: avgWind,
+      avgHydroOutput: avgHydro,
+      currentSolarOutput: Math.round(avgSolar * 1.05),
+      currentWindOutput: Math.round(avgWind * 0.95),
+      currentHydroOutput: Math.round(avgHydro * 1.1),
+    };
+  };
+
+  // Get processed data
+  const energyData = processEnergyData(selectedArea);
+  const calculatedAreaData = getAreaData(selectedArea);
+  
+  // Use the static data from areaData object for sustainability info
   const data = areaData[selectedArea as keyof typeof areaData] || areaData.jelambar;
 
-  // Calculate approximate height for forecast card based on content
-  // Header: 60px (approx)
-  // Content padding: 1rem (16px) top/bottom (1rem*2 = 32px)
-  // Capacity/Avg Output section: 60px (increased)
-  // Chart: 120px (increased from 80px)
-  // Card padding: 1rem (16px) top/bottom
-  // Total approx: 60 + 32 + 60 + 120 = 272px. Let's use 280px for better spacing.
-  const forecastCardHeight = '280px'; // Increased height for better chart visibility
+  // Enhanced tooltip components with proper typing
+  const SolarTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white/95 backdrop-blur-md p-4 border border-orange/30 rounded-xl shadow-xl z-50">
+          <p className="font-bold text-orange mb-2 flex items-center">
+            <Sun className="w-4 h-4 mr-2" />
+            {label}
+          </p>
+          <div className="space-y-1 text-sm text-orange">
+            <p>
+              Solar Output:{" "}
+              <span className="font-semibold">
+                {data.solarOutput.toLocaleString("en-US")} kWH
+              </span>
+            </p>
+            <p>
+              Efficiency: <span className="font-semibold">85%</span>
+            </p>
+            <p>
+              Status: <span className="font-medium">Real Data</span>
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const WindTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      const province = selectedArea ? getProvinceFromArea(selectedArea) : null;
+
+      return (
+        <div className="bg-white/95 backdrop-blur-md p-4 border border-blue/30 rounded-xl shadow-xl z-50">
+          <p className="font-bold text-blue mb-2 flex items-center">
+            <Wind className="w-4 h-4 mr-2" />
+            {label}
+          </p>
+          <div className="space-y-1 text-sm text-blue">
+            <p>
+              Wind Output:{" "}
+              <span className="font-semibold">
+                {data.windOutput.toLocaleString("en-US")} kWH
+              </span>
+            </p>
+            {province && (
+              <p>
+                Province: <span className="font-medium">{province}</span>
+              </p>
+            )}
+            <p>
+              Source: <span className="font-medium">Database Data</span>
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  const HydroTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0].payload;
+      return (
+        <div className="bg-white/95 backdrop-blur-md p-4 border border-emerald/30 rounded-xl shadow-xl z-50">
+          <p className="font-bold text-[#03522D] mb-2 flex items-center">
+            <Waves className="w-4 h-4 mr-2" />
+            {label}
+          </p>
+          <div className="space-y-1 text-sm text-[#197A56]">
+            <p>
+              Hydro Output:{" "}
+              <span className="font-semibold">
+                {data.hydroOutput.toLocaleString("en-US")} kWH
+              </span>
+            </p>
+            <p>
+              Reservoir Level: <span className="font-medium">85%</span>
+            </p>
+            <p>
+              Status: <span className="font-medium">Real Data</span>
+            </p>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-blue-50/30 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-green-500"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (!islandConfig) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-red-50/30 to-orange-50/30 flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-red-600 mb-2">
+            Island Not Found
+          </h2>
+          <p className="text-slate-600 mb-4">
+            The island &quot;{mapId}&quot; could not be found.
+          </p>
+          <button
+            onClick={() => router.push("/")}
+            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Calculate forecast card height
+  const forecastCardHeight = '280px';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-blue-50/30 p-4">
-      {/* Compact Header */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-6 p-4 bg-white/70 backdrop-blur-md rounded-xl border border-white/20 shadow-lg">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg flex items-center justify-center shadow-lg">
@@ -280,30 +612,58 @@ export default function Dashboard() {
               RENEWABLE ENERGY FORECAST
             </p>
             <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
-              {data.name}
+              {calculatedAreaData.name}
             </h2>
+            {selectedArea && (
+              <p className="text-xs text-green-600 font-medium">
+                Selected Area:{" "}
+                {selectedArea.charAt(0).toUpperCase() + selectedArea.slice(1)}
+              </p>
+            )}
           </div>
         </div>
-        <button
-          onClick={() => router.push('/')}
-          className="group flex items-center space-x-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-white/50"
-        >
-          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
-          <span>Back to Map</span>
-        </button>
+        <div className="flex items-center space-x-3">
+          {selectedArea && (
+            <button
+              onClick={() => setSelectedArea("")}
+              className="text-xs font-medium text-slate-600 hover:text-slate-800 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-white/50"
+            >
+              Clear Selection
+            </button>
+          )}
+          <button
+            onClick={() => router.push("/")}
+            className="group flex items-center space-x-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-all duration-200 px-3 py-2 rounded-lg hover:bg-white/50"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+            <span>Back to Map</span>
+          </button>
+        </div>
       </div>
 
-      {/* Compact Map */}
+      {/* Map */}
       <div className="mb-6">
         <div className="p-1 bg-gradient-to-r from-green-400 to-emerald-500 rounded-xl">
           <div className="bg-white rounded-lg overflow-hidden">
-            <JakartaMap
+            <DynamicMap
+              mapId={mapId}
               selectedArea={selectedArea}
               onAreaSelect={setSelectedArea}
             />
           </div>
         </div>
       </div>
+
+      {/* Debug Info (only in development) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-sm">
+          <p>🔍 Debug Info:</p>
+          <p>Island: {mapId} | Province Data Records: {provinceData.length}</p>
+          {selectedArea && (
+            <p>Selected Area: {selectedArea} | Province: {getProvinceFromArea(selectedArea)}</p>
+          )}
+        </div>
+      )}
 
       {/* Compact Bottom Row */}
       <div className="grid grid-cols-6 gap-4 pb-4">
@@ -316,6 +676,11 @@ export default function Dashboard() {
                   <Target className="w-3 h-3 text-white" />
                 </div>
                 Energy Mix
+                {selectedArea && (
+                  <span className="text-xs text-green-600 ml-2">
+                    ({selectedArea})
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3 pt-1">
@@ -325,27 +690,27 @@ export default function Dashboard() {
                     <div className="w-2 h-2 bg-gradient-to-r from-orange-400 to-amber-500 rounded-full"></div>
                     <span className="text-xs font-medium">Solar</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-800">35%</span>
+                  <span className="text-sm font-bold text-slate-800">32%</span>
                 </div>
-                <Progress value={35} className="h-1.5" />
+                <Progress value={32} className="h-1.5" />
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full"></div>
                     <span className="text-xs font-medium">Hydro</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-800">47%</span>
+                  <span className="text-sm font-bold text-slate-800">38%</span>
                 </div>
-                <Progress value={47} className="h-1.5" />
+                <Progress value={38} className="h-1.5" />
 
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full"></div>
                     <span className="text-xs font-medium">Wind</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-800">18%</span>
+                  <span className="text-sm font-bold text-slate-800">30%</span>
                 </div>
-                <Progress value={18} className="h-1.5" />
+                <Progress value={30} className="h-1.5" />
               </div>
             </CardContent>
           </Card>
@@ -360,6 +725,11 @@ export default function Dashboard() {
                   <Sparkles className="w-4 h-4 text-white" />
                 </div>
                 12-Month Energy Forecast Summary
+                {selectedArea && (
+                  <span className="text-xs text-green-600 ml-2">
+                    - {selectedArea}
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1">
@@ -367,7 +737,7 @@ export default function Dashboard() {
                 <div className="text-center group">
                   <div className="p-3 bg-gradient-to-br from-slate-50 to-slate-100 rounded-lg group-hover:from-slate-100 group-hover:to-slate-200 transition-all duration-200">
                     <div className="text-xl font-black text-slate-800 mb-1">
-                      {data.totalCapacity}
+                      {calculatedAreaData.totalCapacity}
                     </div>
                     <div className="text-xs font-semibold text-slate-600">
                       Total Capacity
@@ -377,7 +747,9 @@ export default function Dashboard() {
                 <div className="text-center group">
                   <div className="p-3 bg-gradient-to-br from-orange-50 to-amber-100 rounded-lg group-hover:from-orange-100 group-hover:to-amber-200 transition-all duration-200">
                     <div className="text-xl font-black text-orange-600 mb-1">
-                      1,128 MW
+                      {energyData
+                        .reduce((sum, month) => sum + month.solarOutput, 0)
+                        .toLocaleString("en-US")}
                     </div>
                     <div className="text-xs font-semibold text-slate-600">
                       Solar Output
@@ -387,7 +759,9 @@ export default function Dashboard() {
                 <div className="text-center group">
                   <div className="p-3 bg-gradient-to-br from-blue-50 to-cyan-100 rounded-lg group-hover:from-blue-100 group-hover:to-cyan-200 transition-all duration-200">
                     <div className="text-xl font-black text-blue-600 mb-1">
-                      552 MW
+                      {energyData
+                        .reduce((sum, month) => sum + month.windOutput, 0)
+                        .toLocaleString("en-US")}
                     </div>
                     <div className="text-xs font-semibold text-slate-600">
                       Wind Output
@@ -397,7 +771,9 @@ export default function Dashboard() {
                 <div className="text-center group">
                   <div className="p-3 bg-gradient-to-br from-emerald-50 to-teal-100 rounded-lg group-hover:from-emerald-100 group-hover:to-teal-200 transition-all duration-200">
                     <div className="text-xl font-black text-emerald-600 mb-1">
-                      1,291 MW
+                      {energyData
+                        .reduce((sum, month) => sum + month.hydroOutput, 0)
+                        .toLocaleString("en-US")}
                     </div>
                     <div className="text-xs font-semibold text-slate-600">
                       Hydro Output
@@ -410,18 +786,23 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Solar Energy Row with new Sustainability Card */}
+      {/* Solar Energy Row with Sustainability Card */}
       <div className="grid grid-cols-4 gap-4 mb-4">
-        {/* Solar Forecast Card - Now sets the height */}
+        {/* Solar Forecast Card */}
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 shadow-lg rounded-xl overflow-hidden"
-                style={{ height: forecastCardHeight }}> {/* Tinggi eksplisit */}
+                style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg mr-2 shadow-md">
                   <Sun className="w-4 h-4 text-white" />
                 </div>
                 12 Months Solar Forecast
+                {selectedArea && (
+                  <span className="text-sm text-green-600 ml-2">
+                    - {selectedArea}
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 flex flex-col justify-between h-full">
@@ -432,8 +813,8 @@ export default function Dashboard() {
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Capacity
                       </div>
-                      <div className="text-base font-bold text-slate-800">
-                        {data.solarCapacity}
+                      <div className="text-sm font-bold text-slate-800">
+                        {calculatedAreaData.solarCapacity}
                       </div>
                     </div>
                     <div className="w-px h-8 bg-gradient-to-b from-orange-200 to-transparent"></div>
@@ -441,15 +822,15 @@ export default function Dashboard() {
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Avg Output
                       </div>
-                      <div className="text-base font-bold text-slate-800">
-                        {data.avgSolarOutput} MW
+                      <div className="text-sm font-bold text-slate-800">
+                        {calculatedAreaData.avgSolarOutput.toLocaleString("en-US")} kWH
                       </div>
                     </div>
                   </div>
                 </div>
                 <div className="h-32 relative">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={solarForecastData}>
+                    <AreaChart data={energyData} key={selectedArea}>
                       <defs>
                         <linearGradient id="solarGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop
@@ -469,7 +850,7 @@ export default function Dashboard() {
                       <Tooltip content={<SolarTooltip />} />
                       <Area
                         type="monotone"
-                        dataKey="output"
+                        dataKey="solarOutput"
                         stroke="rgb(251 146 60)"
                         strokeWidth={2}
                         fill="url(#solarGradient)"
@@ -488,7 +869,8 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        {/* Solar Sustainability Card - Same height as forecast card */}
+
+        {/* Solar Sustainability Card */}
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-slate-50 to-orange-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}>
@@ -501,9 +883,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
-              {/* Main Content Area - Side by Side Layout */}
               <div className="grid grid-cols-2 gap-3 mb-3 flex-1">
-                {/* Left Column - AI Generated Sustainability Info (Scrollable) */}
                 <div className="flex flex-col">
                   <div className="flex items-center mb-2">
                     <Lightbulb className="w-4 h-4 mr-2 text-orange-600" />
@@ -537,7 +917,6 @@ export default function Dashboard() {
                         </span>
                       </p>
                     </div>
-                    {/* AI Responses - Only from actual chat */}
                     {chatMessages.solar.filter(msg => msg.type === 'ai').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
                         <span className="font-medium">AI:</span> {msg.message}
@@ -546,14 +925,12 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Right Column - AI Assistant */}
                 <div className="border-l pl-3">
                   <div className="flex items-center mb-2">
                     <MessageCircle className="w-4 h-4 mr-2 text-orange-600" />
                     <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
                   </div>
                   
-                  {/* User Messages Only */}
                   <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
                     {chatMessages.solar.filter(msg => msg.type === 'user').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-orange-100 text-orange-800">
@@ -562,7 +939,6 @@ export default function Dashboard() {
                     ))}
                   </div>
 
-                  {/* Input Area */}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -587,18 +963,22 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Wind Energy Row with new Sustainability Card */}
+      {/* Wind Energy Row with Sustainability Card */}
       <div className="grid grid-cols-4 gap-4 mb-4">
-        {/* Wind Forecast Card - Now sets the height */}
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-sky-50 shadow-lg rounded-xl overflow-hidden"
-                style={{ height: forecastCardHeight }}> {/* Tinggi eksplisit */}
+                style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg mr-2 shadow-md">
                   <Wind className="w-4 h-4 text-white" />
                 </div>
                 12 Months Wind Forecast
+                {selectedArea && (
+                  <span className="text-sm text-green-600 ml-2">
+                    - {selectedArea}
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 flex flex-col justify-between h-full">
@@ -609,8 +989,8 @@ export default function Dashboard() {
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Capacity
                       </div>
-                      <div className="text-base font-bold text-slate-800">
-                        {data.windCapacity}
+                      <div className="text-sm font-bold text-slate-800">
+                        {calculatedAreaData.windCapacity}
                       </div>
                     </div>
                     <div className="w-px h-8 bg-gradient-to-b from-blue-200 to-transparent"></div>
@@ -618,21 +998,21 @@ export default function Dashboard() {
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Avg Output
                       </div>
-                      <div className="text-base font-bold text-slate-800">
-                        {data.avgWindOutput} MW
+                      <div className="text-sm font-bold text-slate-800">
+                        {calculatedAreaData.avgWindOutput.toLocaleString("en-US")} kWH
                       </div>
                     </div>
                   </div>
                 </div>
                 <div className="h-32 relative">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={windForecastData}>
+                    <LineChart data={energyData} key={selectedArea}>
                       <XAxis dataKey="month" hide />
                       <YAxis hide />
                       <Tooltip content={<WindTooltip />} />
                       <Line
                         type="monotone"
-                        dataKey="output"
+                        dataKey="windOutput"
                         stroke="rgb(59 130 246)"
                         strokeWidth={3}
                         dot={{ fill: 'rgb(59 130 246)', strokeWidth: 1, r: 3 }}
@@ -650,7 +1030,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        {/* Wind Sustainability Card - Same height as forecast card */}
+
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-slate-50 to-blue-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}>
@@ -663,9 +1043,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
-              {/* Main Content Area - Side by Side Layout */}
               <div className="grid grid-cols-2 gap-3 mb-3 flex-1">
-                {/* Left Column - AI Generated Sustainability Info (Scrollable) */}
                 <div className="flex flex-col">
                   <div className="flex items-center mb-2">
                     <Lightbulb className="w-4 h-4 mr-2 text-blue-600" />
@@ -699,7 +1077,6 @@ export default function Dashboard() {
                         </span>
                       </p>
                     </div>
-                    {/* AI Responses - Only from actual chat */}
                     {chatMessages.wind.filter(msg => msg.type === 'ai').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
                         <span className="font-medium">AI:</span> {msg.message}
@@ -708,14 +1085,12 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Right Column - AI Assistant */}
                 <div className="border-l pl-3">
                   <div className="flex items-center mb-2">
                     <MessageCircle className="w-4 h-4 mr-2 text-blue-600" />
                     <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
                   </div>
                   
-                  {/* User Messages Only */}
                   <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
                     {chatMessages.wind.filter(msg => msg.type === 'user').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-blue-100 text-blue-800">
@@ -724,7 +1099,6 @@ export default function Dashboard() {
                     ))}
                   </div>
 
-                  {/* Input Area */}
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -749,18 +1123,22 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Hydro Energy Row with new Sustainability Card */}
+      {/* Hydro Energy Row with Sustainability Card */}
       <div className="grid grid-cols-4 gap-4 mb-6">
-        {/* Hydro Forecast Card - Now sets the height */}
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 shadow-lg rounded-xl overflow-hidden"
-                style={{ height: forecastCardHeight }}> {/* Tinggi eksplisit */}
+                style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg mr-2 shadow-md">
                   <Waves className="w-4 h-4 text-white" />
                 </div>
                 12 Months Hydro Forecast
+                {selectedArea && (
+                  <span className="text-sm text-green-600 ml-2">
+                    - {selectedArea}
+                  </span>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 flex flex-col justify-between h-full">
@@ -771,8 +1149,8 @@ export default function Dashboard() {
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Capacity
                       </div>
-                      <div className="text-base font-bold text-slate-800">
-                        {data.hydroCapacity}
+                      <div className="text-sm font-bold text-slate-800">
+                        {calculatedAreaData.hydroCapacity}
                       </div>
                     </div>
                     <div className="w-px h-8 bg-gradient-to-b from-emerald-200 to-transparent"></div>
@@ -780,19 +1158,23 @@ export default function Dashboard() {
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Avg Output
                       </div>
-                      <div className="text-base font-bold text-slate-800">
-                        {data.avgHydroOutput} MW
+                      <div className="text-sm font-bold text-slate-800">
+                        {calculatedAreaData.avgHydroOutput.toLocaleString("en-US")} kWH
                       </div>
                     </div>
                   </div>
                 </div>
                 <div className="h-32 relative">
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart data={hydroForecastData}>
+                    <BarChart data={energyData} key={selectedArea}>
                       <XAxis dataKey="month" hide />
                       <YAxis hide />
                       <Tooltip content={<HydroTooltip />} />
-                      <Bar dataKey="output" fill="rgb(16 185 129)" radius={[2, 2, 0, 0]} />
+                      <Bar
+                        dataKey="hydroOutput"
+                        fill="rgb(16 185 129)"
+                        radius={[2, 2, 0, 0]}
+                      />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
@@ -800,7 +1182,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        {/* Hydro Sustainability Card - Same height as forecast card */}
+
         <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-slate-50 to-emerald-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}>
@@ -813,9 +1195,7 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
-              {/* Main Content Area - Side by Side Layout */}
               <div className="grid grid-cols-2 gap-3 mb-3 flex-1">
-                {/* Left Column - AI Generated Sustainability Info (Scrollable) */}
                 <div className="flex flex-col">
                   <div className="flex items-center mb-2">
                     <Lightbulb className="w-4 h-4 mr-2 text-emerald-600" />
@@ -849,7 +1229,6 @@ export default function Dashboard() {
                         </span>
                       </p>
                     </div>
-                    {/* AI Responses - Only from actual chat */}
                     {chatMessages.hydro.filter(msg => msg.type === 'ai').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
                         <span className="font-medium">AI:</span> {msg.message}
@@ -858,14 +1237,12 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Right Column - AI Assistant */}
                 <div className="border-l pl-3">
                   <div className="flex items-center mb-2">
                     <MessageCircle className="w-4 h-4 mr-2 text-emerald-600" />
                     <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
                   </div>
                   
-                  {/* User Messages Only */}
                   <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
                     {chatMessages.hydro.filter(msg => msg.type === 'user').map((msg, index) => (
                       <div key={index} className="text-xs p-2 rounded-lg bg-emerald-100 text-emerald-800">
@@ -874,7 +1251,6 @@ export default function Dashboard() {
                     ))}
                   </div>
 
-                  {/* Input Area */}
                   <div className="flex gap-2">
                     <input
                       type="text"
