@@ -3,7 +3,11 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 
-export default function HomePage() {
+interface HomePageProps {
+  setCurrentPage: (page: string) => void;
+}
+
+export default function HomePage({ setCurrentPage }: HomePageProps) {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
@@ -21,10 +25,13 @@ export default function HomePage() {
                 We forecast energy output while analyzing air, water, and soil footprints with AI-powered recommendations.
               </p>
               <div className="flex flex-wrap gap-4">
-                <Button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 py-6 text-lg rounded-full">
+                <Button 
+                  className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 py-6 text-lg rounded-full cursor-pointer"
+                  onClick={() => setCurrentPage("map")}
+                >
                   Explore Platform
                 </Button>
-                <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white px-8 py-6 text-lg rounded-full">
+                <Button variant="outline" className="border-green-600 text-green-600 hover:bg-green-600 hover:text-white px-8 py-6 text-lg rounded-full cursor-pointer">
                   Learn More
                 </Button>
               </div>
@@ -139,35 +146,6 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* About Section */}
-      <section className="py-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-            <div className="space-y-8">
-              <h2 className="text-4xl lg:text-5xl font-black text-gray-800">
-                Pioneering Sustainable Development in Indonesia
-              </h2>
-              <p className="text-lg text-gray-600 leading-relaxed">
-                Indonesia's unique archipelago presents both incredible opportunities and complex challenges 
-                for renewable energy development. Lestaree bridges this gap with cutting-edge technology 
-                and environmental science.
-              </p>
-              <p className="text-lg text-gray-600 leading-relaxed">
-                Our platform combines satellite imagery, environmental sensors, and artificial intelligence 
-                to provide unprecedented insights into sustainable energy potential while safeguarding 
-                Indonesia's precious ecosystems.
-              </p>
-              <Button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 py-6 text-lg rounded-full">
-                Discover Our Impact
-              </Button>
-            </div>
-            <div className="relative h-96 bg-gradient-to-br from-green-100 to-green-200 rounded-2xl flex items-center justify-center">
-              <div className="w-72 h-48 bg-green-600 rounded-lg opacity-80"></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* CTA Section */}
       <section className="bg-gradient-to-br from-gray-50 to-gray-100 py-20">
         <div className="max-w-7xl mx-auto px-6 text-center">
@@ -176,9 +154,12 @@ export default function HomePage() {
           </h2>
           <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto leading-relaxed">
             Join leading organizations using Lestaree to make informed decisions about renewable energy 
-            projects while protecting Indonesia's environment.
+            projects while protecting Indonesia&apos;s environment.
           </p>
-          <Button className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 py-6 text-lg rounded-full">
+          <Button 
+            className="bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white px-8 py-6 text-lg rounded-full"
+            onClick={() => setCurrentPage("map")}
+          >
             Start Your Project
           </Button>
         </div>
@@ -215,7 +196,7 @@ export default function HomePage() {
             </div>
             <div>
               <h3 className="text-green-400 text-lg font-bold mb-4">Resources</h3>
-              <div className="space-y-2">
+              <div className="space-by-2">
                 <p><a href="#" className="text-gray-300 hover:text-green-400 transition-colors">Documentation</a></p>
                 <p><a href="#" className="text-gray-300 hover:text-green-400 transition-colors">Case Studies</a></p>
                 <p><a href="#" className="text-gray-300 hover:text-green-400 transition-colors">Blog</a></p>

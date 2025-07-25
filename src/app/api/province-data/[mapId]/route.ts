@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PrismaClient } from '@/generated/prisma';
 
-// Map route params to database island names (matching your seed data)
 const ISLAND_NAME_MAP: Record<string, string> = {
   'jawa': 'Jawa',
   'sumatera': 'Sumatera', 
@@ -12,7 +11,6 @@ const ISLAND_NAME_MAP: Record<string, string> = {
   'nusa-tenggara': 'Nusa Tenggara'
 };
 
-// Fallback mock data when database fails
 const getMockData = (islandName: string) => {
   const baseData = [];
   const provinces = {
@@ -30,11 +28,10 @@ const getMockData = (islandName: string) => {
   for (const provinceName of islandProvinces) {
     for (const energyID of energyTypes) {
       for (let month = 1; month <= 12; month++) {
-        // Generate realistic output values
         let output = 50;
-        if (energyID === 'SOLAR') output = Math.floor(Math.random() * 40) + 30; // 30-70
-        if (energyID === 'WIND') output = Math.floor(Math.random() * 60) + 20; // 20-80
-        if (energyID === 'HYDRO') output = Math.floor(Math.random() * 80) + 40; // 40-120
+        if (energyID === 'SOLAR') output = Math.floor(Math.random() * 40) + 30;
+        if (energyID === 'WIND') output = Math.floor(Math.random() * 60) + 20;
+        if (energyID === 'HYDRO') output = Math.floor(Math.random() * 80) + 40;
 
         baseData.push({
           id: id++,
@@ -67,11 +64,8 @@ export async function GET(
   let prisma: PrismaClient | undefined;
   
   try {
-    // Await the params since they're now a Promise in newer Next.js versions
     const { mapId } = await params;
     islandName = ISLAND_NAME_MAP[mapId.toLowerCase()];
-
-    console.log(`🔍 API called with mapId: ${mapId}, mapped to: ${islandName}`);
 
     if (!islandName) {
       return NextResponse.json(
@@ -80,7 +74,7 @@ export async function GET(
       );
     }
 
-    // Try database first
+    // Try db
     try {
       prisma = new PrismaClient({
         log: ['error'],
@@ -114,15 +108,13 @@ export async function GET(
         ]
       });
 
-      console.log(`✅ Found ${provinceData.length} records for ${islandName} from database`);
       return NextResponse.json(provinceData);
 
     } catch (dbError) {
-      console.log(`⚠️ Database error for ${islandName}, using fallback data:`, dbError);
+      console.log(`Database error for ${islandName}, using fallback data:`, dbError);
       
       // Use mock data as fallback
       const mockData = getMockData(islandName);
-      console.log(`✅ Generated ${mockData.length} mock records for ${islandName}`);
       
       return NextResponse.json(mockData);
     }
@@ -130,7 +122,6 @@ export async function GET(
   } catch (error) {
     console.error('Error in API route:', error);
     
-    // Last resort: return basic mock data
     if (islandName) {
       const mockData = getMockData(islandName);
       console.log(`🔄 Fallback: Generated ${mockData.length} mock records for ${islandName}`);
@@ -142,7 +133,6 @@ export async function GET(
       { status: 500 }
     );
   } finally {
-    // Always disconnect the client when done
     if (prisma) {
       try {
         await prisma.$disconnect();

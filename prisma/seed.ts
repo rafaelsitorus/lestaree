@@ -1,24 +1,29 @@
 import { PrismaClient } from '../src/generated/prisma'
 import monthlyAvgData from '../monthly_avg.json'
 import solarData from '../monthly_avg_solar.json'
+import hydroData from '../monthly_avg_hydro.json'
 
-const prisma = new PrismaClient()
+const prisma = new PrismaClient({
+  log: ['query', 'info', 'warn', 'error'],
+})
 
 async function main() {
   try {
-    // Clear existing data (optional - be careful in production!)
-    console.log('🧹 Clearing existing data...');
-    await prisma.provinceData.deleteMany()
-    await prisma.energyType.deleteMany()
-    await prisma.province.deleteMany()
-    await prisma.island.deleteMany()
+    await prisma.$disconnect()
+    await prisma.$connect()
+    
+    console.log('Clearing existing data');
+    
+    await prisma.$executeRaw`TRUNCATE TABLE "province_data" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "energy_types" CASCADE`;  
+    await prisma.$executeRaw`TRUNCATE TABLE "provinces" CASCADE`;
+    await prisma.$executeRaw`TRUNCATE TABLE "islands" CASCADE`;
 
-    // Insert Islands (Fixed: Sumatera not Sumatra)
-    console.log('🏝️ Creating islands...');
+    // Island
     const islands = await prisma.island.createMany({
       data: [
         { islandName: 'Jawa' },
-        { islandName: 'Sumatera' },  // Fixed: was 'Sumatra'
+        { islandName: 'Sumatera' },
         { islandName: 'Sulawesi' },
         { islandName: 'Kalimantan' },
         { islandName: 'Papua' },
@@ -27,8 +32,7 @@ async function main() {
       ],
     })
 
-    // Insert Provinces with proper capitalization to match your JSON
-    console.log('📍 Creating provinces...');
+    // Province
     const provinces = await prisma.province.createMany({
       data: [
         // Java provinces
@@ -39,7 +43,7 @@ async function main() {
         { provinceName: 'DI YOGYAKARTA', islandName: 'Jawa', primarySource: null },
         { provinceName: 'BANTEN', islandName: 'Jawa', primarySource: null },
         
-        // Sumatera provinces (Fixed: was 'Sumatera')
+        // Sumatera provinces
         { provinceName: 'SUMATERA UTARA', islandName: 'Sumatera', primarySource: null },
         { provinceName: 'SUMATERA BARAT', islandName: 'Sumatera', primarySource: null },
         { provinceName: 'SUMATERA SELATAN', islandName: 'Sumatera', primarySource: null },
@@ -85,8 +89,7 @@ async function main() {
       ],
     })
 
-    // Insert Energy Types
-    console.log('⚡ Creating energy types...');
+    // Energy
     const energyTypes = await prisma.energyType.createMany({
       data: [
         { energyID: 'WIND', energyName: 'Wind Energy' },
@@ -95,9 +98,6 @@ async function main() {
       ],
     })
 
-    console.log('✅ Base data inserted successfully!')
-
-    // Function to normalize province names (handle case differences)
     const normalizeProvinceName = (name: string): string => {
       const nameMap: Record<string, string> = {
         'Aceh': 'ACEH',
@@ -143,8 +143,7 @@ async function main() {
       return nameMap[name] || name.toUpperCase();
     };
 
-    // Insert Wind Energy Data
-    console.log('🌪️ Inserting wind energy data...');
+    // Wind Energy
     let windInsertedCount = 0;
     let windErrorCount = 0;
 
@@ -161,17 +160,12 @@ async function main() {
         });
         windInsertedCount++;
       } catch (error) {
-        console.log(`❌ Error inserting wind data for ${data.Province}, Month ${data.Month}:`, error);
+        console.log(`Error inserting wind data for ${data.Province}, Month ${data.Month}:`, error);
         windErrorCount++;
       }
     }
 
-    console.log(`✅ Wind energy data insertion complete!`);
-    console.log(`📊 Successfully inserted: ${windInsertedCount} wind records`);
-    console.log(`❌ Wind errors: ${windErrorCount} records`);
-
-    // Insert Solar Energy Data
-    console.log('☀️ Inserting solar energy data...');
+    // Solar Energy
     let solarInsertedCount = 0;
     let solarErrorCount = 0;
 
@@ -193,30 +187,49 @@ async function main() {
       }
     }
 
-    console.log(`✅ Solar energy data insertion complete!`);
-    console.log(`📊 Successfully inserted: ${solarInsertedCount} solar records`);
-    console.log(`❌ Solar errors: ${solarErrorCount} records`);
+    // Hydro Energy
+    let hydroInsertedCount = 0;
+    let hydroErrorCount = 0;
+
+    for (const data of hydroData) {
+      try {
+        const normalizedProvince = normalizeProvinceName(data.Prov);
+        await prisma.provinceData.create({
+          data: {
+            provinceName: normalizedProvince,
+            energyID: 'HYDRO',
+            month: data.month,
+            output: data['energy (kWh)'],
+          },
+        });
+        hydroInsertedCount++;
+      } catch (error) {
+        console.log(`❌ Error inserting hydro data for ${data.Prov}, Month ${data.month}:`, error);
+        hydroErrorCount++;
+      }
+    }
+
 
     // Summary
-    console.log('\n🎉 SEED SUMMARY:');
     console.log(`Total Wind Records: ${windInsertedCount}`);
     console.log(`Total Solar Records: ${solarInsertedCount}`);
-    console.log(`Total Records: ${windInsertedCount + solarInsertedCount}`);
-    console.log(`Total Errors: ${windErrorCount + solarErrorCount}`);
+    console.log(`Total Hydro Records: ${hydroInsertedCount}`);
+    console.log(`Total Records: ${windInsertedCount + solarInsertedCount + hydroInsertedCount}`);
+    console.log(`Total Errors: ${windErrorCount + solarErrorCount + hydroErrorCount}`);
 
   } catch (error) {
-    console.error('❌ Error during seeding:', error);
+    console.error('❌ Error cok: ', error);
     throw error;
+  } finally {
+    await prisma.$disconnect();
   }
 }
 
 main()
   .then(async () => {
     console.log('🎯 Seeding completed successfully!');
-    await prisma.$disconnect()
   })
   .catch(async (e) => {
     console.error('❌ Seed failed:', e)
-    await prisma.$disconnect()
     process.exit(1)
   })

@@ -5,10 +5,8 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Create a new instance with custom configuration for better connection handling
 export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   log: ['warn', 'error'],
-  // Add connection management for development
   datasources: {
     db: {
       url: process.env.DATABASE_URL,
@@ -16,11 +14,9 @@ export const prisma = globalForPrisma.prisma ?? new PrismaClient({
   },
 });
 
-// Store globally in development only
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.prisma = prisma;
   
-  // Handle graceful shutdown
   const cleanup = async () => {
     console.log('🔄 Cleaning up Prisma connections...');
     await prisma.$disconnect();

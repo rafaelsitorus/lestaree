@@ -1,4 +1,3 @@
-// src/utils/chatUtils.ts
 import { EnergyData } from '@/types/chat';
 
 export const formatEnergyContext = (energyType: string, data: EnergyData) => {

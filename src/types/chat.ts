@@ -1,4 +1,3 @@
-// src/types/chat.ts
 export interface ChatMessage {
   type: 'user' | 'ai';
   message: string;

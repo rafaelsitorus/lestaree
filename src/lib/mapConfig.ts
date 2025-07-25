@@ -5,7 +5,7 @@ export interface Area {
   totalOutput: string;
   primarySource: string;
   efficiency: number;
-  provinceName?: string; // Link to database
+  provinceName?: string;
 }
 
 export interface IslandConfig {

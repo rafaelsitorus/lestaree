@@ -37,7 +37,6 @@ import {
   Tooltip,
 } from "recharts";
 
-// Types for database data
 interface ProvinceData {
   id: number;
   provinceName: string;
@@ -54,8 +53,6 @@ interface ProvinceData {
     energyName: string;
   };
 }
-
-// Types for tooltip props
 interface TooltipProps {
   active?: boolean;
   payload?: Array<{
@@ -70,7 +67,6 @@ interface TooltipProps {
   label?: string;
 }
 
-// Month names for display
 const monthNames = [
   "Jan",
   "Feb",
@@ -86,7 +82,6 @@ const monthNames = [
   "Dec",
 ];
 
-// Area-specific data with sustainability information (using raja's enhanced version)
 const areaData = {
   jelambar: {
     name: "Jelambar, Jakarta",
@@ -151,16 +146,13 @@ export default function Dashboard() {
     hydro: false
   });
 
-  // Get mapId from route parameter
   const mapId = (params?.mapId as string) || "jawa";
 
-  // Load island configuration and data
   useEffect(() => {
     const loadIslandData = async () => {
       try {
         setLoading(true);
 
-        // Get island configuration
         const config = getIslandConfig(mapId);
         setIslandConfig(config);
 
@@ -169,9 +161,8 @@ export default function Dashboard() {
           return;
         }
 
-        console.log(`🔍 Loading data for island: ${mapId}`);
+        console.log(`Loading data : ${mapId}`);
 
-        // Fetch province data from database API
         const response = await fetch(`/api/province-data/${mapId}`);
 
         if (response.ok) {
@@ -186,7 +177,6 @@ export default function Dashboard() {
             errorText
           );
 
-          // Try to parse as JSON for better error message
           try {
             const errorJson = JSON.parse(errorText);
             console.error("API Error:", errorJson);
@@ -204,7 +194,6 @@ export default function Dashboard() {
     loadIslandData();
   }, [mapId]);
 
-  // Helper function to get provinces for an island (matching your seed data)
   const getIslandProvinces = (mapId: string): string[] => {
     const islandToProvinces: Record<string, string[]> = {
       jawa: [
@@ -254,14 +243,12 @@ export default function Dashboard() {
     return islandToProvinces[mapId.toLowerCase()] || [];
   };
 
-  // Function to get province name from selected area
   const getProvinceFromArea = (areaId: string) => {
     if (!islandConfig) return null;
     const area = islandConfig.areas.find((area) => area.id === areaId);
     return area?.provinceName || null;
   };
 
-  // Process energy data using database data
   const processEnergyData = (selectedArea?: string) => {
     let targetProvince = null;
 
@@ -272,10 +259,8 @@ export default function Dashboard() {
     const monthlyData = monthNames.map((month, index) => {
       const monthNumber = index + 1;
 
-      // Get real wind data from database
       let windOutput = 0;
       if (targetProvince) {
-        // Use database data for specific province
         const monthData = provinceData.filter(
           (item: ProvinceData) =>
             item.provinceName === targetProvince &&
@@ -292,7 +277,6 @@ export default function Dashboard() {
               )
             : 0;
       } else {
-        // Use all provinces in island from database
         const islandProvinces = getIslandProvinces(mapId);
         const monthData = provinceData.filter(
           (item: ProvinceData) =>
@@ -311,12 +295,10 @@ export default function Dashboard() {
             : 0;
       }
 
-      // Get real solar and hydro data from database
       let solarOutput = 0;
       let hydroOutput = 0;
 
       if (targetProvince) {
-        // Use database data for specific province
         const solarMonthData = provinceData.filter(
           (item: ProvinceData) =>
             item.provinceName === targetProvince &&
@@ -349,7 +331,6 @@ export default function Dashboard() {
               )
             : 0;
       } else {
-        // Use all provinces in island from database
         const islandProvinces = getIslandProvinces(mapId);
         const solarMonthData = provinceData.filter(
           (item: ProvinceData) =>
@@ -396,7 +377,6 @@ export default function Dashboard() {
     return monthlyData;
   };
 
-  // Get area-specific data
   const getAreaData = (selectedArea?: string) => {
     const energyData = processEnergyData(selectedArea);
     const totalAnnual = energyData.reduce(
@@ -414,7 +394,6 @@ export default function Dashboard() {
       energyData.reduce((sum, month) => sum + month.hydroOutput, 0) / 12
     );
 
-    // Get area name
     let areaName =
       islandConfig?.name || mapId.charAt(0).toUpperCase() + mapId.slice(1);
     if (selectedArea && islandConfig) {
@@ -444,14 +423,11 @@ export default function Dashboard() {
     };
   };
 
-  // Get processed data
   const energyData = processEnergyData(selectedArea);
   const calculatedAreaData = getAreaData(selectedArea);
   
-  // Use the static data from areaData object for sustainability info
   const data = areaData[selectedArea as keyof typeof areaData] || areaData.jelambar;
 
-  // Function untuk memanggil Gemini API
   const callGeminiAPI = async (energyType: 'solar' | 'wind' | 'hydro', message: string = '', useContext: boolean = true) => {
     try {
       // Ensure we have valid data before making API call
@@ -559,7 +535,6 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error generating initial analysis:', error);
-      // Set error message
       setChatMessages(prev => ({
         ...prev,
         [energyType]: [{
@@ -578,7 +553,6 @@ export default function Dashboard() {
     const message = currentInput[energyType].trim();
     if (!message || isLoading[energyType]) return;
 
-    // Add user message
     const userMessage = {
       type: 'user' as const,
       message,
@@ -590,13 +564,11 @@ export default function Dashboard() {
       [energyType]: [...prev[energyType], userMessage]
     }));
 
-    // Clear input
     setCurrentInput(prev => ({
       ...prev,
       [energyType]: ''
     }));
 
-    // Set loading state
     setIsLoading(prev => ({ ...prev, [energyType]: true }));
 
     try {
@@ -614,7 +586,6 @@ export default function Dashboard() {
           [energyType]: [...prev[energyType], aiMessage]
         }));
 
-        // Auto-scroll to show latest message
         setTimeout(() => {
           const analysisContainer = document.querySelector(`[data-scroll-${energyType}]`);
           if (analysisContainer) {
@@ -624,7 +595,6 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      // Add error message
       setChatMessages(prev => ({
         ...prev,
         [energyType]: [...prev[energyType], {
@@ -638,7 +608,6 @@ export default function Dashboard() {
     }
   };
 
-  // Generate initial analysis on component mount
   useEffect(() => {
     if (!loading && provinceData.length > 0) {
       generateInitialAnalysis('solar');
@@ -647,33 +616,28 @@ export default function Dashboard() {
     }
   }, [loading, provinceData.length]);
 
-  // Regenerate AI analysis when location/area changes
   useEffect(() => {
     if (!loading && provinceData.length > 0 && selectedArea) {
-      // Reset the initial analysis flags to allow regeneration
       setHasInitialAnalysis({
         solar: false,
         wind: false,
         hydro: false
       });
 
-      // Clear existing chat messages for the new location
       setChatMessages({
         solar: [],
         wind: [],
         hydro: []
       });
 
-      // Generate new analysis with updated data
       setTimeout(() => {
         generateInitialAnalysis('solar');
         generateInitialAnalysis('wind');
         generateInitialAnalysis('hydro');
-      }, 100); // Small delay to ensure state updates are processed
+      }, 10000); 
     }
-  }, [selectedArea, loading, provinceData.length]); // Trigger when selectedArea changes
+  }, [selectedArea, loading, provinceData.length]);
 
-  // Enhanced tooltip components with proper typing
   const SolarTooltip: React.FC<TooltipProps> = ({ active, payload, label }) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
@@ -853,68 +817,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Debug Info (only in development) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-sm">
-          <p>🔍 Debug Info:</p>
-          <p>Island: {mapId} | Province Data Records: {provinceData.length}</p>
-          {selectedArea && (
-            <p>Selected Area: {selectedArea} | Province: {getProvinceFromArea(selectedArea)}</p>
-          )}
-        </div>
-      )}
-
-      {/* Compact Bottom Row */}
-      <div className="grid grid-cols-6 gap-4 pb-4">
-        <div className="col-span-2">
-          <Card className="border-0 bg-white/70 backdrop-blur-md shadow-lg rounded-xl h-full overflow-hidden">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-bold text-slate-800 flex items-center">
-                <div className="p-1.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg mr-2 shadow-md">
-                  <Target className="w-3 h-3 text-white" />
-                </div>
-                Energy Mix
-                {selectedArea && (
-                  <span className="text-xs text-green-600 ml-2">
-                    ({selectedArea})
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3 pt-1">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gradient-to-r from-orange-400 to-amber-500 rounded-full"></div>
-                    <span className="text-xs font-medium">Solar</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">32%</span>
-                </div>
-                <Progress value={32} className="h-1.5" />
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gradient-to-r from-emerald-400 to-teal-500 rounded-full"></div>
-                    <span className="text-xs font-medium">Hydro</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">38%</span>
-                </div>
-                <Progress value={38} className="h-1.5" />
-
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <div className="w-2 h-2 bg-gradient-to-r from-blue-400 to-cyan-500 rounded-full"></div>
-                    <span className="text-xs font-medium">Wind</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">30%</span>
-                </div>
-                <Progress value={30} className="h-1.5" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+      {/* Compact Upper Row */}
+      <div className="grid pb-5">
         <div className="col-span-4">
-          <Card className="border-0 bg-white/70 backdrop-blur-md shadow-lg rounded-xl overflow-hidden h-full">
+          <Card className="border-0 bg-white/70 rounded-xl overflow-hidden h-full">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-green-500 to-emerald-600 rounded-lg mr-2 shadow-md">
