@@ -6,7 +6,7 @@ const prisma = new PrismaClient();
 // Map route params to database island names (matching your seed data)
 const ISLAND_NAME_MAP: Record<string, string> = {
   'jawa': 'Jawa',
-  'sumatra': 'Sumatra', 
+  'sumatera': 'Sumatera', 
   'sulawesi': 'Sulawesi',
   'kalimantan': 'Kalimantan',
   'papua': 'Papua',
