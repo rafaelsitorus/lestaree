@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import {
   Sun,
   Wind,
@@ -15,6 +16,8 @@ import {
   Recycle, // Icon for waste
   Leaf, // Icon for sustainability
   Lightbulb, // Icon for suggestions/analysis
+  Send,
+  MessageCircle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import {
@@ -207,17 +210,62 @@ const HydroTooltip = ({ active, payload, label }: any) => {
 export default function Dashboard() {
   const router = useRouter();
   const [selectedArea, setSelectedArea] = useState('jelambar');
+  const [chatMessages, setChatMessages] = useState<{[key: string]: Array<{type: 'user' | 'ai', message: string}>}>({
+    solar: [],
+    wind: [],
+    hydro: []
+  });
+  const [currentInput, setCurrentInput] = useState<{[key: string]: string}>({
+    solar: '',
+    wind: '',
+    hydro: ''
+  });
+
+  const handleSendMessage = (energyType: 'solar' | 'wind' | 'hydro') => {
+    const message = currentInput[energyType].trim();
+    if (!message) return;
+
+    // Add user message
+    setChatMessages(prev => ({
+      ...prev,
+      [energyType]: [...prev[energyType], { type: 'user', message }]
+    }));
+
+    // Clear input
+    setCurrentInput(prev => ({
+      ...prev,
+      [energyType]: ''
+    }));
+
+    // Simulate AI response (you can replace this with actual AI API call)
+    setTimeout(() => {
+      const aiResponse = `Thank you for your question about ${energyType} energy sustainability. This is a simulated AI response that will be replaced with actual AI integration.`;
+      
+      setChatMessages(prev => ({
+        ...prev,
+        [energyType]: [...prev[energyType], { type: 'ai', message: aiResponse }]
+      }));
+
+      // Auto-scroll to show latest AI response
+      setTimeout(() => {
+        const analysisContainer = document.querySelector(`[data-scroll-${energyType}]`);
+        if (analysisContainer) {
+          analysisContainer.scrollTop = analysisContainer.scrollHeight;
+        }
+      }, 100);
+    }, 1000);
+  };
 
   const data = areaData[selectedArea as keyof typeof areaData] || areaData.jelambar;
 
   // Calculate approximate height for forecast card based on content
   // Header: 60px (approx)
   // Content padding: 1rem (16px) top/bottom (1rem*2 = 32px)
-  // Capacity/Avg Output section: 40px (approx)
-  // Chart: 80px (h-20)
+  // Capacity/Avg Output section: 60px (increased)
+  // Chart: 120px (increased from 80px)
   // Card padding: 1rem (16px) top/bottom
-  // Total approx: 60 + 32 + 40 + 80 = 212px. Let's use 210px for consistency.
-  const forecastCardHeight = '210px'; // Tinggi yang akan menjadi acuan
+  // Total approx: 60 + 32 + 60 + 120 = 272px. Let's use 280px for better spacing.
+  const forecastCardHeight = '280px'; // Increased height for better chart visibility
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-green-50/30 to-blue-50/30 p-4">
@@ -363,9 +411,9 @@ export default function Dashboard() {
       </div>
 
       {/* Solar Energy Row with new Sustainability Card */}
-      <div className="grid grid-cols-6 gap-4 mb-4">
+      <div className="grid grid-cols-4 gap-4 mb-4">
         {/* Solar Forecast Card - Now sets the height */}
-        <div className="col-span-3">
+        <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-orange-50 via-amber-50 to-yellow-50 shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}> {/* Tinggi eksplisit */}
             <CardHeader className="pb-2">
@@ -377,29 +425,29 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 flex flex-col justify-between h-full">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-4">
                     <div className="text-center">
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Capacity
                       </div>
-                      <div className="text-sm font-bold text-slate-800">
+                      <div className="text-base font-bold text-slate-800">
                         {data.solarCapacity}
                       </div>
                     </div>
-                    <div className="w-px h-6 bg-gradient-to-b from-orange-200 to-transparent"></div>
+                    <div className="w-px h-8 bg-gradient-to-b from-orange-200 to-transparent"></div>
                     <div className="text-center">
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Avg Output
                       </div>
-                      <div className="text-sm font-bold text-slate-800">
+                      <div className="text-base font-bold text-slate-800">
                         {data.avgSolarOutput} MW
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="h-20 relative">
+                <div className="h-32 relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={solarForecastData}>
                       <defs>
@@ -440,34 +488,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        {/* Solar Today Card - Adjusts to forecast card's height */}
-        <div className="col-span-1">
-          <Card className="border-0 bg-gradient-to-br from-orange-500 to-amber-600 text-white shadow-lg rounded-xl h-full overflow-hidden">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center">
-                <Activity className="w-3 h-3 mr-1" />
-                Solar Today
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-center h-full pt-1">
-              <div className="text-center">
-                <div className="text-3xl font-black mb-1">
-                  {data.currentSolarOutput}
-                </div>
-                <div className="text-sm font-medium opacity-90 mb-2">MW</div>
-                <div className="flex items-center justify-center space-x-1">
-                  <div className="w-2 h-2 bg-white/30 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-medium">
-                    {((data.currentSolarOutput / data.avgSolarOutput) * 100).toFixed(0)}% avg
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        {/* Solar Sustainability Card - Adjusts to forecast card's height, with scroll */}
+        {/* Solar Sustainability Card - Same height as forecast card */}
         <div className="col-span-2">
-          <Card className="border-0 bg-gradient-to-br from-slate-50 to-orange-50/50 backdrop-blur-md shadow-lg rounded-xl h-full overflow-hidden">
+          <Card className="border-0 bg-gradient-to-br from-slate-50 to-orange-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
+                style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-orange-500 to-amber-600 rounded-lg mr-2 shadow-md">
@@ -476,37 +500,97 @@ export default function Dashboard() {
                 Solar Sustainability
               </CardTitle>
             </CardHeader>
-            <CardContent
-              className="pt-1 text-sm text-slate-700 space-y-2"
-              style={{
-                height: `calc(${forecastCardHeight} - 60px - 20px)`, // header + padding content top/bottom + other paddings
-                overflowY: 'auto'
-              }}
-            >
-              <p className="flex items-start">
-                <Recycle className="w-4 h-4 mr-2 mt-1 text-orange-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Waste Issue: </span>
-                {data.sustainability.solar.wasteIssue}
-              </p>
-              <p className="flex items-start">
-                <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Suggestions: </span>
-                {data.sustainability.solar.suggestions}
-              </p>
-              <p className="flex items-start">
-                <Leaf className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Aspects: </span>
-                {data.sustainability.solar.sustainabilityAspects}
-              </p>
+            <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
+              {/* Main Content Area - Side by Side Layout */}
+              <div className="grid grid-cols-2 gap-3 mb-3 flex-1">
+                {/* Left Column - AI Generated Sustainability Info (Scrollable) */}
+                <div className="flex flex-col">
+                  <div className="flex items-center mb-2">
+                    <Lightbulb className="w-4 h-4 mr-2 text-orange-600" />
+                    <span className="font-semibold text-slate-800 text-xs">AI Analysis</span>
+                  </div>
+                  <div className="space-y-2 overflow-y-auto max-h-32" data-scroll-solar>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Recycle className="w-4 h-4 mr-2 mt-1 text-orange-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Waste Issue: </span>
+                          {data.sustainability.solar.wasteIssue}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Suggestions: </span>
+                          {data.sustainability.solar.suggestions}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Leaf className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Aspects: </span>
+                          {data.sustainability.solar.sustainabilityAspects}
+                        </span>
+                      </p>
+                    </div>
+                    {/* AI Responses - Only from actual chat */}
+                    {chatMessages.solar.filter(msg => msg.type === 'ai').map((msg, index) => (
+                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
+                        <span className="font-medium">AI:</span> {msg.message}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Column - AI Assistant */}
+                <div className="border-l pl-3">
+                  <div className="flex items-center mb-2">
+                    <MessageCircle className="w-4 h-4 mr-2 text-orange-600" />
+                    <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
+                  </div>
+                  
+                  {/* User Messages Only */}
+                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
+                    {chatMessages.solar.filter(msg => msg.type === 'user').map((msg, index) => (
+                      <div key={index} className="text-xs p-2 rounded-lg bg-orange-100 text-orange-800">
+                        <span className="font-medium">You:</span> {msg.message}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Input Area */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={currentInput.solar}
+                      onChange={(e) => setCurrentInput(prev => ({ ...prev, solar: e.target.value }))}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('solar')}
+                      placeholder="Ask about solar..."
+                      className="flex-1 px-2 py-1 text-xs border border-orange-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-300"
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleSendMessage('solar')}
+                      className="px-2 py-1 h-auto bg-orange-500 hover:bg-orange-600"
+                    >
+                      <Send className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
 
       {/* Wind Energy Row with new Sustainability Card */}
-      <div className="grid grid-cols-6 gap-4 mb-4">
+      <div className="grid grid-cols-4 gap-4 mb-4">
         {/* Wind Forecast Card - Now sets the height */}
-        <div className="col-span-3">
+        <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-blue-50 via-cyan-50 to-sky-50 shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}> {/* Tinggi eksplisit */}
             <CardHeader className="pb-2">
@@ -518,29 +602,29 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 flex flex-col justify-between h-full">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-4">
                     <div className="text-center">
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Capacity
                       </div>
-                      <div className="text-sm font-bold text-slate-800">
+                      <div className="text-base font-bold text-slate-800">
                         {data.windCapacity}
                       </div>
                     </div>
-                    <div className="w-px h-6 bg-gradient-to-b from-blue-200 to-transparent"></div>
+                    <div className="w-px h-8 bg-gradient-to-b from-blue-200 to-transparent"></div>
                     <div className="text-center">
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Avg Output
                       </div>
-                      <div className="text-sm font-bold text-slate-800">
+                      <div className="text-base font-bold text-slate-800">
                         {data.avgWindOutput} MW
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="h-20 relative">
+                <div className="h-32 relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={windForecastData}>
                       <XAxis dataKey="month" hide />
@@ -566,34 +650,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        {/* Wind Today Card - Adjusts to forecast card's height */}
-        <div className="col-span-1">
-          <Card className="border-0 bg-gradient-to-br from-blue-500 to-cyan-600 text-white shadow-lg rounded-xl h-full overflow-hidden">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center">
-                <Activity className="w-3 h-3 mr-1" />
-                Wind Today
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-center h-full pt-1">
-              <div className="text-center">
-                <div className="text-3xl font-black mb-1">
-                  {data.currentWindOutput}
-                </div>
-                <div className="text-sm font-medium opacity-90 mb-2">MW</div>
-                <div className="flex items-center justify-center space-x-1">
-                  <div className="w-2 h-2 bg-white/30 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-medium">
-                    {((data.currentWindOutput / data.avgWindOutput) * 100).toFixed(0)}% avg
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        {/* Wind Sustainability Card - Adjusts to forecast card's height, with scroll */}
+        {/* Wind Sustainability Card - Same height as forecast card */}
         <div className="col-span-2">
-          <Card className="border-0 bg-gradient-to-br from-slate-50 to-blue-50/50 backdrop-blur-md shadow-lg rounded-xl h-full overflow-hidden">
+          <Card className="border-0 bg-gradient-to-br from-slate-50 to-blue-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
+                style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg mr-2 shadow-md">
@@ -602,37 +662,97 @@ export default function Dashboard() {
                 Wind Sustainability
               </CardTitle>
             </CardHeader>
-            <CardContent
-              className="pt-1 text-sm text-slate-700 space-y-2"
-              style={{
-                height: `calc(${forecastCardHeight} - 60px - 20px)`, // header + padding content top/bottom + other paddings
-                overflowY: 'auto'
-              }}
-            >
-              <p className="flex items-start">
-                <Recycle className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Waste Issue: </span>
-                {data.sustainability.wind.wasteIssue}
-              </p>
-              <p className="flex items-start">
-                <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Suggestions: </span>
-                {data.sustainability.wind.suggestions}
-              </p>
-              <p className="flex items-start">
-                <Leaf className="w-4 h-4 mr-2 mt-1 text-emerald-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Aspects: </span>
-                {data.sustainability.wind.sustainabilityAspects}
-              </p>
+            <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
+              {/* Main Content Area - Side by Side Layout */}
+              <div className="grid grid-cols-2 gap-3 mb-3 flex-1">
+                {/* Left Column - AI Generated Sustainability Info (Scrollable) */}
+                <div className="flex flex-col">
+                  <div className="flex items-center mb-2">
+                    <Lightbulb className="w-4 h-4 mr-2 text-blue-600" />
+                    <span className="font-semibold text-slate-800 text-xs">AI Analysis</span>
+                  </div>
+                  <div className="space-y-2 overflow-y-auto max-h-32" data-scroll-wind>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Recycle className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Waste Issue: </span>
+                          {data.sustainability.wind.wasteIssue}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Suggestions: </span>
+                          {data.sustainability.wind.suggestions}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Leaf className="w-4 h-4 mr-2 mt-1 text-emerald-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Aspects: </span>
+                          {data.sustainability.wind.sustainabilityAspects}
+                        </span>
+                      </p>
+                    </div>
+                    {/* AI Responses - Only from actual chat */}
+                    {chatMessages.wind.filter(msg => msg.type === 'ai').map((msg, index) => (
+                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
+                        <span className="font-medium">AI:</span> {msg.message}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Column - AI Assistant */}
+                <div className="border-l pl-3">
+                  <div className="flex items-center mb-2">
+                    <MessageCircle className="w-4 h-4 mr-2 text-blue-600" />
+                    <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
+                  </div>
+                  
+                  {/* User Messages Only */}
+                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
+                    {chatMessages.wind.filter(msg => msg.type === 'user').map((msg, index) => (
+                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-100 text-blue-800">
+                        <span className="font-medium">You:</span> {msg.message}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Input Area */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={currentInput.wind}
+                      onChange={(e) => setCurrentInput(prev => ({ ...prev, wind: e.target.value }))}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('wind')}
+                      placeholder="Ask about wind..."
+                      className="flex-1 px-2 py-1 text-xs border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-300"
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleSendMessage('wind')}
+                      className="px-2 py-1 h-auto bg-blue-500 hover:bg-blue-600"
+                    >
+                      <Send className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
       </div>
 
       {/* Hydro Energy Row with new Sustainability Card */}
-      <div className="grid grid-cols-6 gap-4 mb-6">
+      <div className="grid grid-cols-4 gap-4 mb-6">
         {/* Hydro Forecast Card - Now sets the height */}
-        <div className="col-span-3">
+        <div className="col-span-2">
           <Card className="border-0 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50 shadow-lg rounded-xl overflow-hidden"
                 style={{ height: forecastCardHeight }}> {/* Tinggi eksplisit */}
             <CardHeader className="pb-2">
@@ -644,29 +764,29 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent className="pt-1 flex flex-col justify-between h-full">
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-4">
                     <div className="text-center">
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Capacity
                       </div>
-                      <div className="text-sm font-bold text-slate-800">
+                      <div className="text-base font-bold text-slate-800">
                         {data.hydroCapacity}
                       </div>
                     </div>
-                    <div className="w-px h-6 bg-gradient-to-b from-emerald-200 to-transparent"></div>
+                    <div className="w-px h-8 bg-gradient-to-b from-emerald-200 to-transparent"></div>
                     <div className="text-center">
                       <div className="text-xs text-slate-500 uppercase tracking-wide">
                         Avg Output
                       </div>
-                      <div className="text-sm font-bold text-slate-800">
+                      <div className="text-base font-bold text-slate-800">
                         {data.avgHydroOutput} MW
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="h-20 relative">
+                <div className="h-32 relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={hydroForecastData}>
                       <XAxis dataKey="month" hide />
@@ -680,34 +800,10 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
-        {/* Hydro Today Card - Adjusts to forecast card's height */}
-        <div className="col-span-1">
-          <Card className="border-0 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg rounded-xl h-full overflow-hidden">
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center">
-                <Activity className="w-3 h-3 mr-1" />
-                Hydro Today
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="flex items-center justify-center h-full pt-1">
-              <div className="text-center">
-                <div className="text-3xl font-black mb-1">
-                  {data.currentHydroOutput}
-                </div>
-                <div className="text-sm font-medium opacity-90 mb-2">MW</div>
-                <div className="flex items-center justify-center space-x-1">
-                  <div className="w-2 h-2 bg-white/30 rounded-full animate-pulse"></div>
-                  <span className="text-xs font-medium">
-                    {((data.currentHydroOutput / data.avgHydroOutput) * 100).toFixed(0)}% avg
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        {/* Hydro Sustainability Card - Adjusts to forecast card's height, with scroll */}
+        {/* Hydro Sustainability Card - Same height as forecast card */}
         <div className="col-span-2">
-          <Card className="border-0 bg-gradient-to-br from-slate-50 to-emerald-50/50 backdrop-blur-md shadow-lg rounded-xl h-full overflow-hidden">
+          <Card className="border-0 bg-gradient-to-br from-slate-50 to-emerald-50/50 backdrop-blur-md shadow-lg rounded-xl overflow-hidden"
+                style={{ height: forecastCardHeight }}>
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-bold text-slate-800 flex items-center">
                 <div className="p-1.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg mr-2 shadow-md">
@@ -716,28 +812,88 @@ export default function Dashboard() {
                 Hydro Sustainability
               </CardTitle>
             </CardHeader>
-            <CardContent
-              className="pt-1 text-sm text-slate-700 space-y-2"
-              style={{
-                height: `calc(${forecastCardHeight} - 60px - 20px)`, // header + padding content top/bottom + other paddings
-                overflowY: 'auto'
-              }}
-            >
-              <p className="flex items-start">
-                <Recycle className="w-4 h-4 mr-2 mt-1 text-emerald-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Waste Issue: </span>
-                {data.sustainability.hydro.wasteIssue}
-              </p>
-              <p className="flex items-start">
-                <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Suggestions: </span>
-                {data.sustainability.hydro.suggestions}
-              </p>
-              <p className="flex items-start">
-                <Leaf className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
-                <span className="font-semibold text-slate-800">Aspects: </span>
-                {data.sustainability.hydro.sustainabilityAspects}
-              </p>
+            <CardContent className="pt-1 text-sm text-slate-700 h-full flex flex-col">
+              {/* Main Content Area - Side by Side Layout */}
+              <div className="grid grid-cols-2 gap-3 mb-3 flex-1">
+                {/* Left Column - AI Generated Sustainability Info (Scrollable) */}
+                <div className="flex flex-col">
+                  <div className="flex items-center mb-2">
+                    <Lightbulb className="w-4 h-4 mr-2 text-emerald-600" />
+                    <span className="font-semibold text-slate-800 text-xs">AI Analysis</span>
+                  </div>
+                  <div className="space-y-2 overflow-y-auto max-h-32" data-scroll-hydro>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Recycle className="w-4 h-4 mr-2 mt-1 text-emerald-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Waste Issue: </span>
+                          {data.sustainability.hydro.wasteIssue}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Target className="w-4 h-4 mr-2 mt-1 text-green-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Suggestions: </span>
+                          {data.sustainability.hydro.suggestions}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="text-xs p-2 rounded-lg bg-gray-100 text-gray-800">
+                      <p className="flex items-start">
+                        <Leaf className="w-4 h-4 mr-2 mt-1 text-blue-600 flex-shrink-0" />
+                        <span>
+                          <span className="font-medium">Aspects: </span>
+                          {data.sustainability.hydro.sustainabilityAspects}
+                        </span>
+                      </p>
+                    </div>
+                    {/* AI Responses - Only from actual chat */}
+                    {chatMessages.hydro.filter(msg => msg.type === 'ai').map((msg, index) => (
+                      <div key={index} className="text-xs p-2 rounded-lg bg-blue-50 text-blue-800">
+                        <span className="font-medium">AI:</span> {msg.message}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Right Column - AI Assistant */}
+                <div className="border-l pl-3">
+                  <div className="flex items-center mb-2">
+                    <MessageCircle className="w-4 h-4 mr-2 text-emerald-600" />
+                    <span className="font-semibold text-slate-800 text-xs">AI Assistant</span>
+                  </div>
+                  
+                  {/* User Messages Only */}
+                  <div className="space-y-2 mb-3 max-h-20 overflow-y-auto">
+                    {chatMessages.hydro.filter(msg => msg.type === 'user').map((msg, index) => (
+                      <div key={index} className="text-xs p-2 rounded-lg bg-emerald-100 text-emerald-800">
+                        <span className="font-medium">You:</span> {msg.message}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Input Area */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={currentInput.hydro}
+                      onChange={(e) => setCurrentInput(prev => ({ ...prev, hydro: e.target.value }))}
+                      onKeyPress={(e) => e.key === 'Enter' && handleSendMessage('hydro')}
+                      placeholder="Ask about hydro..."
+                      className="flex-1 px-2 py-1 text-xs border border-emerald-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                    />
+                    <Button 
+                      size="sm" 
+                      onClick={() => handleSendMessage('hydro')}
+                      className="px-2 py-1 h-auto bg-emerald-500 hover:bg-emerald-600"
+                    >
+                      <Send className="w-3 h-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
