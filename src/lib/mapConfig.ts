@@ -59,10 +59,10 @@ export const islandConfigs: Record<string, IslandConfig> = {
       },
     ],
   },
-  sumatra: {
+  sumatera: {
     center: [-0.5, 101.5],
     zoom: 7,
-    name: "Sumatra",
+    name: "Sumatera",
     areas: [
       {
         id: "medan",

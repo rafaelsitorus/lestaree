@@ -379,7 +379,7 @@ export default function Dashboard() {
         "DI YOGYAKARTA",
         "BANTEN",
       ],
-      sumatra: [
+      sumatera: [
         "SUMATERA UTARA",
         "SUMATERA BARAT",
         "SUMATERA SELATAN",
